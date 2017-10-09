@@ -1,0 +1,34 @@
+import toolset : using ;
+
+using python 
+: 2.7 # version
+: # Interperter/path to dir
+: ${PY27_32include} # includes
+: ${PY27_32libs} # libs 
+: # conditions 
+; 
+
+using python
+: 2.7 # version
+: # Interperter/path to dir
+: ${PY27_64include} # includes
+: ${PY27_64libs} # libs 
+: <address-model>64 # conditions 
+;
+
+using python 
+: 3.6 # version
+: # Interperter/path to dir
+: ${PY36_32include} # includes
+: ${PY36_32libs} # libs 
+: # conditions 
+;
+
+using python
+: 3.6 # version
+: # Interperter/path to dir
+: ${PY36_64include} # includes
+: ${PY36_64libs} # libs 
+: <address-model>64 # conditions 
+;
+
