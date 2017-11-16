@@ -294,7 +294,7 @@ class Builder(object):
         self.py_config_replace[key] = escaped
 
     def make_dirs(self):
-        shutil.copytree("../ReleaseBuild", self.build_path)
+        shutil.copytree(os.path.dirname(os.path.realpath(__file__)), self.build_path)
  
     def make_source_archive(self):
         self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))        
