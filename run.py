@@ -43,6 +43,8 @@ bzip2_base_path = "http://www.bzip.org/"
 
 inno_ver = "5.5.9"
 
+msbuild_msvc141 = r"C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\MSBuild\15.0\Bin\MSBuild.exe"
+
 # https://dl.bintray.com/boostorg/master/boost_1_64_0-snapshot.tar.bz2
 # https://dl.bintray.com/boostorg/beta/1.64.0.beta.1/source/boost_1_64_0_b1.tar.bz2
 REPOS = {
@@ -426,6 +428,19 @@ class Builder(object):
         self.midway_cleanup()
         self.build_stop = datetime.datetime.now()
 
+    def test_lib(self):
+        lib_check = os.path.join(self.build_path, "LibraryCheck")
+        update_file = os.path.join(lib_check, "UpdatePaths.bat")
+        with open(update_file, 'r') as update:
+            lines = update.readlines()
+        with open(update_file, 'w') as out:
+            for line in lines:
+                out.write(line.replace("FILL_BOOST_PATH", self.source_path)
+
+        os.chdir(lib_check)
+        subprocess.call("UpdatePaths.bat", shell=True)
+        subprocess.call(msbuild_msvc141 + " make.msbuild", shell=True)
+
     def package(self):
         self.package_start = datetime.datetime.now()
         self.make_archive()
@@ -469,6 +484,7 @@ class Builder(object):
         self.initialize()
         self.prepare()
         self.build()
+        self.test_lib()
         self.package_parallel()
 
     def run_package(self):
