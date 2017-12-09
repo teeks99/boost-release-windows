@@ -340,8 +340,9 @@ class Builder(object):
             with open("DEPENDENCY_VERSIONS.txt", "w") as dep_ver:
                 dep_ver.write("Python 2: " + python2_ver + "\n")
                 dep_ver.write("Python 2: " + python2_ver + " amd64\n")
-                dep_ver.write("Python 3: " + python3_ver + "\n")
-                dep_ver.write("Python 3: " + python3_ver + " amd64\n")
+                # Can't build py2 and py3 together
+                #dep_ver.write("Python 3: " + python3_ver + "\n")
+                #dep_ver.write("Python 3: " + python3_ver + " amd64\n")
                 dep_ver.write("zlib: " + zlib_ver + "\n")
                 dep_ver.write("bzip2: " + bzip2_ver + "\n")
                 dep_ver.write("\n")
