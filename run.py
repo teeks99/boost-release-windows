@@ -33,7 +33,7 @@ PACKAGE_PROCESSES = 16
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.13"
-python3_ver = "3.6.0"
+python3_ver = "3.7.0"
 
 zlib_ver = "1.2.8"
 zlib_base_path = "http://www.zlib.net/fossils/"
@@ -279,7 +279,7 @@ class Builder(object):
         if not os.path.exists(usrcfg_file):
             self.py_config_replace = {}
             for version, arch, end in itertools.product(
-                    ["27", "36"], ["32", "64"], ["include", "libs"]):
+                    ["27", "37"], ["32", "64"], ["include", "libs"]):
                 self.make_python_config_path(version, arch, end)
 
             with open("user-config.jam.template", "r") as uctemp:
