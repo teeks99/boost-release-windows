@@ -301,10 +301,10 @@ class Builder(object):
         repo_dir = os.path.dirname(os.path.relpath(__file__))
         template = None
         if pyver[0] == "2":
-            template = os.path.join(repo_dir, "user-config.jam.py2.template")
+            template = os.path.join(self.build_path, "user-config.jam.py2.template")
         else:
-            template = os.path.join(repo_dir, "user-config.jam.py3.template")
-            
+            template = os.path.join(self.build_path, "user-config.jam.py3.template")
+
         with open(template, "r") as uctemp:
             stemplate = Template(uctemp.read())
 
