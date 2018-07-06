@@ -1,0 +1,17 @@
+import toolset : using ;
+
+using python
+: 3.7 # version
+: # Interperter/path to dir
+: ${PY37_32include} # includes
+: ${PY37_32libs} # libs
+: # conditions
+;
+
+using python
+: 3.7 # version
+: # Interperter/path to dir
+: ${PY37_64include} # includes
+: ${PY37_64libs} # libs
+: <address-model>64 # conditions
+;

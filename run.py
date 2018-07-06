@@ -35,6 +35,7 @@ tk_boost_deps = "https://boost.teeks99.com/deps/"
 python2_ver = "2.7.13"
 python3_ver = "3.7.0"
 pyvers = ["27", "37"]
+py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
 zlib_ver = "1.2.8"
 zlib_base_path = "http://www.zlib.net/fossils/"
@@ -55,13 +56,13 @@ REPOS = {
             "archive_suffix": "-snapshot"
         },
         "beta-rc": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",            
+            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}_rc{rc}"
         },
         "beta": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}/source/",            
+            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}"
@@ -102,7 +103,7 @@ class Archive(object):
                 self.extensions.append(ext)
                 base, ext = os.path.splitext(self.package)
             self.extensions.reverse()
-            
+
         if local_file:
             self.local_file = local_file
         else:
@@ -129,7 +130,7 @@ class Archive(object):
         unzip_name = self.local_file
         for extension in reversed(self.extensions):
             subprocess.call(self.zip_cmd + " x " + unzip_name)
-            unzip_name = unzip_name[:-len(extension)]        
+            unzip_name = unzip_name[:-len(extension)]
 
     def get(self):
         self.download()
@@ -163,7 +164,7 @@ def make_installer(options):
 
     os.mkdir(o['tmp_build_dir'])
     os.chdir(o['tmp_build_dir'])
-    subprocess.call(o['zip_cmd'] + " x " + o['source_path'] + ".tar")        
+    subprocess.call(o['zip_cmd'] + " x " + o['source_path'] + ".tar")
     shutil.move(o['source_archive_output'], o['source'])
     shutil.copytree(os.path.join(o['source_path'], o['libs']), os.path.join(o['source'], o['libs']))
 
@@ -204,7 +205,7 @@ class Builder(object):
         parser.add_argument(
             "--repo", help="Repo to use for build", default=REPO)
         parser.add_argument(
-            "--url", help="base of the URL to get the binary from. " + 
+            "--url", help="base of the URL to get the binary from. " +
             "Combines with file to make the full URL.", default=None)
         parser.add_argument(
             "--file",
@@ -238,7 +239,7 @@ class Builder(object):
             "--vc-arch", action='append',
             help='architecture to build for e.g. 32 or 64')
         parser.parse_args(namespace=self)
-        
+
         if self.vc_arch:
             global vc_archs
             vc_archs = self.vc_arch
@@ -275,18 +276,38 @@ class Builder(object):
         if not self.source_archive_output:
             self.source_archive_output = config["source_archive_output"].format(**replace)
 
-    def make_user_config(self):
+    def check_user_config_exists(self):
         usrcfg_file = os.path.expanduser("~/user-config.jam")
-        if not os.path.exists(usrcfg_file):
-            self.py_config_replace = {}
-            for version, arch, end in itertools.product(
-                    pyvers, ["32", "64"], ["include", "libs"]):
-                self.make_python_config_path(version, arch, end)
+        if os.path.exists(usrcfg_file):
+            raise Exception("~/user-config.jam already exists and would be replaced, please remove it manually")
 
-            with open("user-config.jam.template", "r") as uctemp:
+    def python_ver_for_vc(self, vcver):
+        if vcver in py2use:
+            return python2_ver
+        return python3_ver
+
+    def python_compressed(self, ver):
+        major, minor, micro = ver.split(".")
+        return major+minor
+
+    def make_user_config(self, vcver):
+        pyver = self.python_ver_for_vc(vcver)
+        usrcfg_file = os.path.expanduser("~/user-config.jam")
+        self.py_config_replace = {}
+        for version, arch, end in itertools.product(
+                [self.python_compressed(pyver)], ["32", "64"], ["include", "libs"]):
+            self.make_python_config_path(version, arch, end)
+
+        stemplate = None
+        if pyver[0] == "2":
+            with open("user-config.jam.py2.template", "r") as uctemp:
                 stemplate = Template(uctemp.read())
-                with open(usrcfg_file, "w") as usrcfg:
-                    usrcfg.write(stemplate.safe_substitute(self.py_config_replace))            
+        else:
+            with open("user-config.jam.py3.template", "r") as uctemp:
+                stemplate = Template(uctemp.read())
+
+        with open(usrcfg_file, "w") as usrcfg:
+            usrcfg.write(stemplate.safe_substitute(self.py_config_replace))
 
     def make_python_config_path(self, version, arch, end):
         key = "PY" + version + "_" + arch + end
@@ -296,9 +317,9 @@ class Builder(object):
 
     def make_dirs(self):
         shutil.copytree(os.path.dirname(os.path.realpath(__file__)), self.build_path)
- 
+
     def make_source_archive(self):
-        self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))        
+        self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
 
     def make_dep_archives(self):
         z = self.zip_cmd
@@ -354,6 +375,8 @@ class Builder(object):
         subprocess.call("bootstrap.bat", shell=True)
 
     def build_version(self, arch, vc):
+        self.make_user_config(vc)
+
         cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 --prefix=.\ --libdir=lib" + arch + "-msvc-" + vc + " --includedir=garbage_headers install"
         print("Running: " + cmd)
         subprocess.call(cmd, shell=True)
@@ -403,6 +426,7 @@ class Builder(object):
 
     def prepare(self):
         self.prepare_start = datetime.datetime.now()
+        self.check_user_config_exists()
         self.make_user_config()
         self.make_dirs()
         os.chdir(self.build_path)
@@ -413,7 +437,7 @@ class Builder(object):
         self.get_and_extract_archives_process()
         self.move_source()
         self.set_env_vars()
-        self.make_dependency_versions(pyvers=["2"])
+        self.make_dependency_versions(pyvers=["2", "3"])
         self.prepare_stop = datetime.datetime.now()
 
     def build(self):
