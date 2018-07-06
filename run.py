@@ -298,13 +298,15 @@ class Builder(object):
                 [self.python_compressed(pyver)], ["32", "64"], ["include", "libs"]):
             self.make_python_config_path(version, arch, end)
 
-        stemplate = None
+        repo_dir = os.path.dirname(os.path.relpath(__file__))
+        template = None
         if pyver[0] == "2":
-            with open("user-config.jam.py2.template", "r") as uctemp:
-                stemplate = Template(uctemp.read())
+            template = os.path.join(repo_dir, "user-config.jam.py2.template")
         else:
-            with open("user-config.jam.py3.template", "r") as uctemp:
-                stemplate = Template(uctemp.read())
+            template = os.path.join(repo_dir, "user-config.jam.py3.template")
+            
+        with open(template, "r") as uctemp:
+            stemplate = Template(uctemp.read())
 
         with open(usrcfg_file, "w") as usrcfg:
             usrcfg.write(stemplate.safe_substitute(self.py_config_replace))
