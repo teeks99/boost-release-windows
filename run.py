@@ -34,6 +34,7 @@ tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.13"
 python3_ver = "3.7.0"
+pyvers = ["27", "37"]
 
 zlib_ver = "1.2.8"
 zlib_base_path = "http://www.zlib.net/fossils/"
@@ -279,7 +280,7 @@ class Builder(object):
         if not os.path.exists(usrcfg_file):
             self.py_config_replace = {}
             for version, arch, end in itertools.product(
-                    ["27", "37"], ["32", "64"], ["include", "libs"]):
+                    pyvers, ["32", "64"], ["include", "libs"]):
                 self.make_python_config_path(version, arch, end)
 
             with open("user-config.jam.template", "r") as uctemp:
@@ -335,14 +336,15 @@ class Builder(object):
         bzip2 = os.path.join(self.build_path, "bzip2-" + bzip2_ver)
         os.environ["BZIP2_SOURCE"] = os.path.normpath(bzip2)
 
-    def make_dependency_versions(self):
+    def make_dependency_versions(self, out="DEPENDENCY_VERSIONS.txt", pyvers=["2", "3"]):
         with open("VS_DEPENDENCY_VERSIONS.txt", "r") as vs_versions:
-            with open("DEPENDENCY_VERSIONS.txt", "w") as dep_ver:
-                dep_ver.write("Python 2: " + python2_ver + "\n")
-                dep_ver.write("Python 2: " + python2_ver + " amd64\n")
-                # Can't build py2 and py3 together
-                #dep_ver.write("Python 3: " + python3_ver + "\n")
-                #dep_ver.write("Python 3: " + python3_ver + " amd64\n")
+            with open(out, "w") as dep_ver:
+                if "2" in pyvers:
+                    dep_ver.write("Python 2: " + python2_ver + "\n")
+                    dep_ver.write("Python 2: " + python2_ver + " amd64\n")
+                if "3" in pyvers:
+                    dep_ver.write("Python 3: " + python3_ver + "\n")
+                    dep_ver.write("Python 3: " + python3_ver + " amd64\n")
                 dep_ver.write("zlib: " + zlib_ver + "\n")
                 dep_ver.write("bzip2: " + bzip2_ver + "\n")
                 dep_ver.write("\n")
@@ -411,7 +413,7 @@ class Builder(object):
         self.get_and_extract_archives_process()
         self.move_source()
         self.set_env_vars()
-        self.make_dependency_versions()
+        self.make_dependency_versions(pyvers=["2"])
         self.prepare_stop = datetime.datetime.now()
 
     def build(self):
