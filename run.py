@@ -427,7 +427,6 @@ class Builder(object):
     def prepare(self):
         self.prepare_start = datetime.datetime.now()
         self.check_user_config_exists()
-        self.make_user_config()
         self.make_dirs()
         os.chdir(self.build_path)
         self.make_source_archive()
