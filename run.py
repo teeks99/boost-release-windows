@@ -254,6 +254,7 @@ class Builder(object):
         self.archive_suffix = ""
         self.source = "boost_1_" + self.version + "_" + self.minor_version
         self.source_path = os.path.join(self.build_path, self.source)
+        self.lib_check_path = os.path.join(self.source_path, self.lib_check_dir)
         self.zip_cmd = os.path.join(self.build_path, "7z1604/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "Inno Setup 5/Compil32.exe")
         self.set_source_info()
@@ -454,6 +455,31 @@ class Builder(object):
         self.midway_cleanup()
         self.build_stop = datetime.datetime.now()
 
+    def setup_lib_check(self):
+        for version in vc_versions:
+            extension = ".vcxproj"
+            if version in ["8.0", "9.0"]:  # old .vcproj users
+                extension = ".vcproj"
+            name, minor = version.split(".")
+            if version in ["14.1"]:  # Use dotted name for thse
+                name = version
+            proj = "BoostLibraryCheck-VC" + name + extension
+
+            lib32_path = os.path.join(self.source_path, "lib32-msvc-" + version)
+            lib64_path = os.path.join(self.source_path, "lib64-msvc-" + version)
+
+            proj_path = os.path.join(self.lib_check_path, proj)
+
+            with open(proj_path, 'r') as f:
+                orig = f.read()
+
+            inc = orig.replace("FILL_INC_PATH", self.source_path)
+            l32 = inc.replace("FILL_32_LINK_PATH", lib32_path)
+            l64 = l32.replace("FILL_64_LINK_PATH", lib64_path)
+
+            with open(proj_path, 'w') as f:
+                f.write(l64)
+
     def package(self):
         self.package_start = datetime.datetime.now()
         self.make_archive()
@@ -497,6 +523,7 @@ class Builder(object):
         self.initialize()
         self.prepare()
         self.build()
+        self.setup_lib_check()
         self.package_parallel()
 
     def run_package(self):
