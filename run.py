@@ -254,7 +254,7 @@ class Builder(object):
         self.archive_suffix = ""
         self.source = "boost_1_" + self.version + "_" + self.minor_version
         self.source_path = os.path.join(self.build_path, self.source)
-        self.lib_check_path = os.path.join(self.source_path, self.lib_check_dir)
+        self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.zip_cmd = os.path.join(self.build_path, "7z1604/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "Inno Setup 5/Compil32.exe")
         self.set_source_info()
