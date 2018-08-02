@@ -16,10 +16,11 @@ except ImportError: # Python 2
 
 VERSION = "68"
 MINOR_VERSION = "0"
-TYPE = "beta-rc"
+#TYPE = "beta-rc"
+TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 2
+RC = 1
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
