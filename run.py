@@ -14,10 +14,10 @@ try:
 except ImportError: # Python 2
     from urllib import urlretrieve
 
-VERSION = "68"
+VERSION = "69"
 MINOR_VERSION = "0"
-#TYPE = "beta-rc"
-TYPE = "rc"
+TYPE = "beta-rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
 RC = 1
@@ -42,7 +42,8 @@ zlib_ver = "1.2.8"
 zlib_base_path = "http://www.zlib.net/fossils/"
 
 bzip2_ver = "1.0.6"
-bzip2_base_path = "http://www.bzip.org/"
+#bzip2_base_path = "http://www.bzip.org/"
+bzip2_base_path = "https://fossies.org/linux/misc/bzip2-1.0.6.tar.gz"
 
 inno_ver = "5.5.9"
 
@@ -57,7 +58,7 @@ REPOS = {
             "archive_suffix": "-snapshot"
         },
         "beta-rc": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta{beta}.rc{rc}/source/",
+            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}_rc{rc}"
@@ -333,7 +334,8 @@ class Builder(object):
         a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-32", [".7z"]))
         a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-64", [".7z"]))
         a.append(Archive(z, zlib_base_path, "zlib-" + zlib_ver, [".tar", ".gz"]))
-        a.append(Archive(z, bzip2_base_path + bzip2_ver + "/", "bzip2-" + bzip2_ver, [".tar", ".gz"]))
+        #a.append(Archive(z, bzip2_base_path + bzip2_ver + "/", "bzip2-" + bzip2_ver, [".tar", ".gz"]))
+        a.append(Archive(z, bzip2_base_path, "bzip2-" + bzip2_ver, [".tar", ".gz"]))
         a.append(Archive(z, tk_boost_deps, "InnoSetup-" + inno_ver, [".7z"]))
 
     def get_and_extract_archives(self):
