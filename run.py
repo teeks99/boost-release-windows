@@ -43,7 +43,7 @@ zlib_base_path = "http://www.zlib.net/fossils/"
 
 bzip2_ver = "1.0.6"
 #bzip2_base_path = "http://www.bzip.org/"
-bzip2_base_path = "https://fossies.org/linux/misc/bzip2-1.0.6.tar.gz"
+bzip2_base_path = tk_boost_deps
 
 inno_ver = "5.5.9"
 
