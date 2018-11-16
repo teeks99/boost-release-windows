@@ -20,7 +20,7 @@ TYPE = "beta-rc"
 #TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 2
+RC = 3
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
