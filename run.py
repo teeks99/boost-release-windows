@@ -483,6 +483,10 @@ class Builder(object):
             with open(proj_path, 'w') as f:
                 f.write(l64)
 
+    def start_lib_check(self):
+        subprocess.call('start "Library Check" /d ' + self.lib_check_path +
+                        ' start_check.bat' , shell=True)
+
     def package(self):
         self.package_start = datetime.datetime.now()
         self.make_archive()
@@ -525,8 +529,9 @@ class Builder(object):
     def run_build(self):
         self.initialize()
         self.prepare()
-        self.build()
         self.setup_lib_check()
+        self.build()
+        self.start_lib_check()
         self.package_parallel()
 
     def run_package(self):
