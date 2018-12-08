@@ -16,3 +16,4 @@ if exist %enterprise% (
 )
 
 msbuild make.msbuild
+pause
