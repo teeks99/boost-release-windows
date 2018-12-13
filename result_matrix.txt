@@ -1,9 +1,5 @@
 
 toolset     arch    compile Link    Execute
-msvc-8.0    32      X       X       X
-msvc-8.0    64      X       X       X
-msvc-9.0    32      X       X       X
-msvc-9.0    64      X       X       X
 msvc-10.0   32      X       X       X
 msvc-10.0   64      X       X       X
 msvc-11.0   32      X       X       X
