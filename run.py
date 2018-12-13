@@ -25,7 +25,7 @@ RC = 1
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
 
-vc_versions = ["8.0", "9.0", "10.0", "11.0", "12.0", "14.0", "14.1"]
+vc_versions = ["10.0", "11.0", "12.0", "14.0", "14.1"]
 vc_archs = ["32", "64"]
 
 PACKAGE_PROCESSES = 16
