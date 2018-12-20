@@ -443,6 +443,7 @@ class Builder(object):
         self.move_source()
         self.set_env_vars()
         self.make_dependency_versions(pyvers=["2", "3"])
+        self.setup_lib_check()
         self.prepare_stop = datetime.datetime.now()
 
     def build(self):
@@ -456,6 +457,7 @@ class Builder(object):
 
         os.chdir(self.build_path)
         self.midway_cleanup()
+        self.start_lib_check()
         self.build_stop = datetime.datetime.now()
 
     def setup_lib_check(self):
@@ -529,9 +531,7 @@ class Builder(object):
     def run_build(self):
         self.initialize()
         self.prepare()
-        self.setup_lib_check()
         self.build()
-        self.start_lib_check()
         self.package_parallel()
 
     def run_package(self):
