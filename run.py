@@ -226,6 +226,9 @@ class Builder(object):
             help="Directory on build drive to use for build",
             default=BUILD_DIR)
         parser.add_argument(
+            "--keep-intermediate", help="Keep intermediate files (bin.v2)",
+            default=False)
+        parser.add_argument(
             "--beta",
             help="Beta version to use, only applies if type is 'beta'",
             default=BETA)
@@ -406,10 +409,14 @@ class Builder(object):
         shutil.copy("DEPENDENCY_VERSIONS.txt", os.path.join(self.source_path, "DEPENDENCY_VERSIONS.txt"))
 
     def make_archive(self):
-        shutil.move(os.path.join(self.source_path, "bin.v2"), "bin.v2")
+        if self.keep_intermediate:
+            shutil.move(os.path.join(self.source_path, "bin.v2"), "bin.v2")
+        else:
+            shutil.rmtree(os.path.join(self.source_path, "bin.v2"))
         archive = self.source + self.archive_suffix + "-bin-msvc-all-32-64.7z"
         subprocess.call(self.zip_cmd + " a " + archive + " " + self.source_path)
-        shutil.move("bin.v2", os.path.join(self.source_path, "bin.v2"))
+        if self.keep_intermediate:
+            shutil.move("bin.v2", os.path.join(self.source_path, "bin.v2"))
 
     def make_installer_options(self, arch, vc):
         options = {
