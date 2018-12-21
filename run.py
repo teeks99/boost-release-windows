@@ -298,6 +298,7 @@ class Builder(object):
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "Inno Setup 5/Compil32.exe")
+        self.times = os.path.abspath(self.times)
         self.set_source_info()
 
     def set_source_info(self):
