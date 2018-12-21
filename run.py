@@ -422,7 +422,7 @@ class Builder(object):
     def build_version(self, arch, vc):
         self.make_user_config(vc)
 
-        t = Timer("Build msvc-" + vc)
+        t = Timer("Build msvc-" + vc + "-" + arch)
         t.start()
 
         cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 --prefix=.\ --libdir=lib" + arch + "-msvc-" + vc + " --includedir=garbage_headers install"
