@@ -118,9 +118,9 @@ class Timer(object):
             file = open(file, "a")
             opened_file = True
         file.write("--- " + self.name + " ---\n")
-        file.write("    start: " + str(self.start))
-        file.write("    stop:  " + str(self.stop))
-        file.write("    elapsed: " + str(self.elapsed))
+        file.write("    start: " + str(self.start) + "\n")
+        file.write("    stop:  " + str(self.stop) + "\n")
+        file.write("    elapsed: " + str(self.elapsed) + "\n")
 
         if opened_file:
             file.close()
