@@ -14,6 +14,11 @@ try:
 except ImportError: # Python 2
     from urllib import urlretrieve
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
 VERSION = "69"
 MINOR_VERSION = "0"
 #TYPE = "beta-rc"
@@ -108,10 +113,17 @@ class Timer(object):
         self.elapsed = self.stop - self.start
 
     def output(self, file=sys.stdout):
+        opened_file = False
+        if isinstance(file, basestring):
+            file = open(file, "a")
+            opened_file = True
         file.write("--- " + self.name + " ---\n")
         file.write("    start: " + str(start))
         file.write("    stop:  " + str(stop))
         file.write("    elapsed: " + str(stop - start))
+
+        if opened_file:
+            file.close()
 
 class Archive(object):
     def __init__(self, zip_cmd, base_url, package, extensions=[], local_file=None):
