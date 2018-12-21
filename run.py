@@ -24,6 +24,7 @@ RC = 1
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
+TIMES = "times.txt"
 
 vc_versions = ["10.0", "11.0", "12.0", "14.0", "14.1"]
 vc_archs = ["32", "64"]
@@ -91,6 +92,26 @@ REPOS = {
     }
 }
 
+
+class Timer(object):
+    def __init__(self, name):
+        self.name = name
+        self.started = False
+
+    def start(self):
+        self.started = True
+        self.start = datetime.datetime.now()
+
+    def stop(self):
+        self.stop = datetime.datetime.now()
+        self.started = False
+        self.elapsed = self.stop - self.start
+
+    def output(self, file=sys.stdout):
+        file.write("--- " + self.name + " ---\n")
+        file.write("    start: " + str(start))
+        file.write("    stop:  " + str(stop))
+        file.write("    elapsed: " + str(stop - start))
 
 class Archive(object):
     def __init__(self, zip_cmd, base_url, package, extensions=[], local_file=None):
@@ -225,6 +246,9 @@ class Builder(object):
             "--build-dir",
             help="Directory on build drive to use for build",
             default=BUILD_DIR)
+        parser.add_argument(
+            "--times", help="file to write build times to",
+            default=TIMES)
         parser.add_argument(
             "--keep-intermediate", help="Keep intermediate files (bin.v2)",
             default=False)
@@ -386,9 +410,15 @@ class Builder(object):
     def build_version(self, arch, vc):
         self.make_user_config(vc)
 
+        t = Timer("Build msvc-" + vc)
+        t.start()
+
         cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 --prefix=.\ --libdir=lib" + arch + "-msvc-" + vc + " --includedir=garbage_headers install"
         print("Running: " + cmd)
         subprocess.call(cmd, shell=True)
+
+        t.stop()
+        t.output(self.times)
 
         with open(arch + "bitlog.txt", "a") as log:
             log.write(cmd + "\n")
@@ -438,7 +468,8 @@ class Builder(object):
         self.make_vars()
 
     def prepare(self):
-        self.prepare_start = datetime.datetime.now()
+        self.prepare_time = Timer("prepare")
+        self.prepare_time.start()
         self.check_user_config_exists()
         self.make_dirs()
         os.chdir(self.build_path)
@@ -451,10 +482,12 @@ class Builder(object):
         self.set_env_vars()
         self.make_dependency_versions(pyvers=["2", "3"])
         self.setup_lib_check()
-        self.prepare_stop = datetime.datetime.now()
+        self.prepare_time.stop()
+        self.prepare_time.output(self.times)
 
     def build(self):
-        self.build_start = datetime.datetime.now()
+        self.build_time = Timer("Build")
+        self.build_time.start()
         os.chdir(self.source_path)
         self.bootstrap()
         for vc_arch in vc_archs:
@@ -465,7 +498,8 @@ class Builder(object):
         os.chdir(self.build_path)
         self.midway_cleanup()
         self.start_lib_check()
-        self.build_stop = datetime.datetime.now()
+        self.build_time.stop()
+        self.build_time.output(self.times)
 
     def setup_lib_check(self):
         for version in vc_versions:
@@ -497,16 +531,19 @@ class Builder(object):
                         ' start_check.bat' , shell=True)
 
     def package(self):
-        self.package_start = datetime.datetime.now()
+        self.package_time = Timer("Package")
+        self.package_time.start()
         self.make_archive()
 
         for vc_arch, vc_ver in itertools.product(vc_archs, vc_versions):
             options = self.make_installer_options(vc_arch, vc_ver)
             make_installer(options)
-        self.package_stop = datetime.datetime.now()
+        self.package_time.stop()
+        self.package_time.output(self.times)
 
     def package_parallel(self):
-        self.package_start = datetime.datetime.now()
+        self.package_time = Timer("Package")
+        self.package_time.start()
         self.make_archive()
 
         pool = multiprocessing.Pool(processes=PACKAGE_PROCESSES)
@@ -519,21 +556,13 @@ class Builder(object):
         pool.close()
         pool.join()
 
-        self.package_stop = datetime.datetime.now()
+        self.package_time.stop()
+        self.package_time.output(self.times)
 
     def print_times(self):
-        self.print_part("prepare")
-        self.print_part("build")
-        self.print_part("package")
-
-    def print_part(self, part):
-        if hasattr(self, part + "_start") and hasattr(self, part + "_stop"):
-            start = getattr(self, part + "_start")
-            stop = getattr(self, part + "_stop")
-            print("--- " + part + " ---")
-            print("    start: " + str(start))
-            print("    stop:  " + str(stop))
-            print("    elapsed: " + str(stop - start))
+        self.prepare_time.output()
+        self.build_time.output()
+        self.package_time.output()
 
     def run_build(self):
         self.initialize()
