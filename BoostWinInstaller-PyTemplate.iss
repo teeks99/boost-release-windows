@@ -1,4 +1,4 @@
-; This is a template for an installer for the Behemoth tools
+; This is a template for an installer for Boost libraries
 ; it is meant to be automatically called from a script.
 ;  The script should replace the following: $FILL_VERSION $FILL_CONFIG
 
