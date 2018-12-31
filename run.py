@@ -52,7 +52,7 @@ bzip2_ver = "1.0.6"
 #bzip2_base_path = "http://www.bzip.org/"
 bzip2_base_path = tk_boost_deps
 
-inno_ver = "5.5.9"
+inno_ver = "5.6.1"
 
 # https://dl.bintray.com/boostorg/master/boost_1_64_0-snapshot.tar.bz2
 # https://dl.bintray.com/boostorg/beta/1.64.0.beta.1/source/boost_1_64_0_b1.tar.bz2
