@@ -9,6 +9,7 @@ import datetime
 import sys
 import argparse
 from string import Template
+from timer import Timer
 try:
     from urllib.request import urlretrieve
 except ImportError: # Python 2
@@ -97,33 +98,6 @@ REPOS = {
     }
 }
 
-
-class Timer(object):
-    def __init__(self, name):
-        self.name = name
-        self.started = False
-
-    def start(self):
-        self.started = True
-        self.start = datetime.datetime.now()
-
-    def stop(self):
-        self.stop = datetime.datetime.now()
-        self.started = False
-        self.elapsed = self.stop - self.start
-
-    def output(self, file=sys.stdout):
-        opened_file = False
-        if isinstance(file, basestring):
-            file = open(file, "a")
-            opened_file = True
-        file.write("--- " + self.name + " ---\n")
-        file.write("    start: " + str(self.start) + "\n")
-        file.write("    stop:  " + str(self.stop) + "\n")
-        file.write("    elapsed: " + str(self.elapsed) + "\n")
-
-        if opened_file:
-            file.close()
 
 class Archive(object):
     def __init__(self, zip_cmd, base_url, package, extensions=[], local_file=None):
