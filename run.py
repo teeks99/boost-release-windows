@@ -15,10 +15,6 @@ try:
 except ImportError: # Python 2
     from urllib import urlretrieve
 
-try:
-    basestring
-except NameError:
-    basestring = str
 
 VERSION = "69"
 MINOR_VERSION = "0"
@@ -40,8 +36,8 @@ PACKAGE_PROCESSES = 16
 # Binary packages used during build, that we can't get from upstream
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
-python2_ver = "2.7.13"
-python3_ver = "3.7.0"
+python2_ver = "2.7.15"
+python3_ver = "3.7.2"
 pyvers = ["27", "37"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
@@ -52,7 +48,7 @@ bzip2_ver = "1.0.6"
 #bzip2_base_path = "http://www.bzip.org/"
 bzip2_base_path = tk_boost_deps
 
-inno_ver = "5.6.1"
+inno_ver = "5.6.1_tk1"
 
 # https://dl.bintray.com/boostorg/master/boost_1_64_0-snapshot.tar.bz2
 # https://dl.bintray.com/boostorg/beta/1.64.0.beta.1/source/boost_1_64_0_b1.tar.bz2
@@ -271,7 +267,7 @@ class Builder(object):
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
-        self.inno_cmd = os.path.join(self.build_path, "Inno Setup 5/Compil32.exe")
+        self.inno_cmd = os.path.join(self.build_path, "InnoSetup5/Compil32.exe")
         self.times = os.path.abspath(self.times)
         self.set_source_info()
 
@@ -343,14 +339,14 @@ class Builder(object):
     def make_dep_archives(self):
         z = self.zip_cmd
         a = self.archives
-        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-32", [".7z"]))
-        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-64", [".7z"]))
-        a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-32", [".7z"]))
-        a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-64", [".7z"]))
+        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-32", [".tar", ".xz"]))
+        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-64", [".tar", ".xz"]))
+        a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-32", [".tar", ".xz"]))
+        a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-64", [".tar", ".xz"]))
         a.append(Archive(z, zlib_base_path, "zlib-" + zlib_ver, [".tar", ".gz"]))
         #a.append(Archive(z, bzip2_base_path + bzip2_ver + "/", "bzip2-" + bzip2_ver, [".tar", ".gz"]))
         a.append(Archive(z, bzip2_base_path, "bzip2-" + bzip2_ver, [".tar", ".gz"]))
-        a.append(Archive(z, tk_boost_deps, "InnoSetup-" + inno_ver, [".7z"]))
+        a.append(Archive(z, tk_boost_deps, "InnoSetup-" + inno_ver, [".tar", ".xz"]))
 
     def get_and_extract_archives(self):
         for a in self.archives:
