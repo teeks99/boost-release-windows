@@ -1,6 +1,12 @@
 import datetime
 import sys
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
+
 class Timer(object):
     def __init__(self, name):
         self.name = name
