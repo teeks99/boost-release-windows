@@ -49,6 +49,7 @@ bzip2_ver = "1.0.6"
 bzip2_base_path = tk_boost_deps
 
 inno_ver = "5.6.1_tk1"
+inno_compression_threads = 6
 
 # https://dl.bintray.com/boostorg/master/boost_1_64_0-snapshot.tar.bz2
 # https://dl.bintray.com/boostorg/beta/1.64.0.beta.1/source/boost_1_64_0_b1.tar.bz2
@@ -173,7 +174,7 @@ def make_installer(options):
     shutil.move(o['source_archive_output'], o['source'])
     shutil.copytree(os.path.join(o['source_path'], o['libs']), os.path.join(o['source'], o['libs']))
 
-    replace = {"FILL_VERSION": o['version'], "FILL_CONFIG": o['config'], "FILL_SOURCE": o['source']}
+    replace = {"FILL_VERSION": o['version'], "FILL_CONFIG": o['config'], "FILL_SOURCE": o['source'], "FILL_NUM_THREADS": o['compression_threads']}
     with open(os.path.join(o['build_path'], "BoostWinInstaller-PyTemplate.iss"), "r") as installer_template:
         stemplate = Template(installer_template.read())
         with open("installer_" + o['config'] + ".iss", "w") as installer:
@@ -249,6 +250,11 @@ class Builder(object):
         parser.add_argument(
             "--vc-arch", action='append',
             help='architecture to build for e.g. 32 or 64')
+
+        parser.add_argument(
+            "--inno-compression-threads", default=inno_compression_threads, 
+            help-'number of compression threads inno setup uses'
+        )
         parser.parse_args(namespace=self)
 
         if self.vc_arch:
@@ -442,7 +448,8 @@ class Builder(object):
             'libs': "lib" + arch + "-msvc-" + vc,
             'config': "msvc-" + vc + "-" + arch,
             'build_path': self.build_path,
-            'inno_cmd': self.inno_cmd
+            'inno_cmd': self.inno_cmd,
+            'compression_threads': self.inno_compression_threads
         }
         return options
 
