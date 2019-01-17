@@ -253,8 +253,7 @@ class Builder(object):
 
         parser.add_argument(
             "--inno-compression-threads", default=inno_compression_threads, 
-            help-'number of compression threads inno setup uses'
-        )
+            help='number of compression threads inno setup uses')
         parser.parse_args(namespace=self)
 
         if self.vc_arch:
