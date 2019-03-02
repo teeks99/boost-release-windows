@@ -98,13 +98,15 @@ REPOS = {
             "url": "https://github.com/boostorg/boost",
             "branch": "develop",
             "source_archive_output": "boost",
-            "archive_suffix": ""
+            "archive_suffix": "",
+            "file": ""
         },
         "master": {
             "url": "https://github.com/boostorg/boost",
             "branch": "master",
             "source_archive_output": "boost",
-            "archive_suffix": ""
+            "archive_suffix": "",
+            "file": ""
         }
     }
 }
@@ -496,9 +498,11 @@ class Builder(object):
         os.chdir(self.build_path)
         self.make_source_archive()
         self.make_dep_archives()
-        #self.get_and_extract_archives()
-        #self.get_and_extract_archives_threaded()
-        self.get_and_extract_archives_process()
+        if self.repo == "git":
+            self.get_and_extract_archives()
+            #self.get_and_extract_archives_threaded()
+        else:
+            self.get_and_extract_archives_process()
         self.move_source()
         self.set_env_vars()
         self.make_dependency_versions(pyvers=["2", "3"])
