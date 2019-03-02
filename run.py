@@ -93,6 +93,20 @@ REPOS = {
             "source_archive_output": "boost_1_{version}_{minor_version}"
         }
     }
+    "git": {
+        "develop": {
+            "url": "https://github.com/boostorg/boost",
+            "branch": "develop",
+            "source_archive_output": "boost",
+            "archive_suffix": ""
+        },
+        "master": {
+            "url": "https://github.com/boostorg/boost",
+            "branch": "master",
+            "source_archive_output": "boost",
+            "archive_suffix": ""
+        }
+    }
 }
 
 
@@ -147,6 +161,19 @@ class Archive(object):
             self.zip_cmd, self.base_url, self.package, self.extensions,
             self.local_file, self.download_name
         ]
+
+
+class GitArchive(object):
+    def __init__(self, url, branch, output_location):
+        self.url = url
+        self.branch = branch
+        self.builddir, self.reponame = os.path.split(output_location)
+
+    def get(self):
+        subprocess.check_call(
+            "git clone --recursive {} {} --branch {}".format(
+            self.url, self.builddir, self.branch), cwd=self.builddir,
+            shell=True)
 
 
 class RemoteArchive(Archive):
@@ -269,6 +296,8 @@ class Builder(object):
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.archive_suffix = ""
         self.source = "boost_1_" + self.version + "_" + self.minor_version
+        if self.repo == "git":
+            self.source = "boost"
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
@@ -339,7 +368,10 @@ class Builder(object):
         shutil.copytree(os.path.dirname(os.path.realpath(__file__)), self.build_path)
 
     def make_source_archive(self):
-        self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
+        if self.repo == "git":
+            self.archives.append(GitArchive(self.url, self.source_path, REPOS[self.repo][self.type]["branch"]))
+        else:
+            self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
 
     def make_dep_archives(self):
         z = self.zip_cmd
@@ -496,7 +528,7 @@ class Builder(object):
             if version in ["8.0", "9.0"]:  # old .vcproj users
                 extension = ".vcproj"
             name, minor = version.split(".")
-            if version in ["14.1"]:  # Use dotted name for thse
+            if version in ["14.1", "14.2"]:  # Use dotted name for these
                 name = version
             proj = "BoostLibraryCheck-VC" + name + extension
 
