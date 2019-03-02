@@ -91,7 +91,8 @@ REPOS = {
             "url": "none",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}"
-        },
+        }
+    },
     "git": {
         "develop": {
             "url": "https://github.com/boostorg/boost",
