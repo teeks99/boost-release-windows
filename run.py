@@ -16,10 +16,10 @@ except ImportError: # Python 2
     from urllib import urlretrieve
 
 
-VERSION = "69"
+VERSION = "70"
 MINOR_VERSION = "0"
-#TYPE = "beta-rc"
-TYPE = "rc"
+TYPE = "beta-rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
 RC = 1
@@ -62,7 +62,7 @@ REPOS = {
             "archive_suffix": "-snapshot"
         },
         "beta-rc": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta{beta}.rc{rc}/source/",
+            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}_rc{rc}"
@@ -174,7 +174,7 @@ class GitArchive(object):
     def get(self):
         subprocess.check_call(
             "git clone --recursive {} {} --branch {}".format(
-            self.url, self.builddir, self.branch), cwd=self.builddir,
+            self.url, self.reponame, self.branch), cwd=self.builddir,
             shell=True)
 
 
@@ -371,7 +371,7 @@ class Builder(object):
 
     def make_source_archive(self):
         if self.repo == "git":
-            self.archives.append(GitArchive(self.url, self.source_path, REPOS[self.repo][self.type]["branch"]))
+            self.archives.append(GitArchive(self.url, REPOS[self.repo][self.type]["branch"], self.source_path))
         else:
             self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
 
