@@ -435,7 +435,7 @@ class Builder(object):
         t = Timer("Build msvc-" + vc + "-" + arch)
         t.start()
 
-        cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 --prefix=.\ --libdir=lib" + arch + "-msvc-" + vc + " --includedir=garbage_headers install"
+        cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 stage"
         print("Running: " + cmd)
         subprocess.call(cmd, shell=True)
 
@@ -446,6 +446,10 @@ class Builder(object):
             log.write(cmd + "\n")
 
         subprocess.call(cmd + " >> " + arch + "bitlog.txt 2>&1", shell=True)
+
+        lib_dir = "lib" + arch + "-msvc-" + vc
+        shutil.move("stage/lib", lib_dir)
+        os.rmdir("stage")
 
         #TODO Generate DEPENDENCY_VERSIONS.txt automatically
         shutil.copy("../DEPENDENCY_VERSIONS.txt", "lib" + arch + "-msvc-" + vc + "/DEPENDENCY_VERSIONS.txt")
