@@ -22,7 +22,7 @@ TYPE = "beta-rc"
 #TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 1
+RC = 2
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
@@ -51,36 +51,35 @@ bzip2_base_path = tk_boost_deps
 inno_ver = "5.6.1_tk1"
 inno_compression_threads = 6
 
-# https://dl.bintray.com/boostorg/master/boost_1_64_0-snapshot.tar.bz2
-# https://dl.bintray.com/boostorg/beta/1.64.0.beta.1/source/boost_1_64_0_b1.tar.bz2
+bintray_boost = "https://dl.bintray.com/boostorg/"
 REPOS = {
     "bintray": {
         "master-snapshot": {
-            "url": "https://dl.bintray.com/boostorg/master/",
+            "url": bintray_boost + "master/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "-snapshot"
         },
         "beta-rc": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",
+            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta.{beta}.rc{rc}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}_rc{rc}"
         },
         "beta": {
-            "url": "https://dl.bintray.com/boostorg/beta/1.{version}.{minor_version}.beta.{beta}/source/",
+            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta.{beta}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}"
         },
         "rc": {
-            "url": "https://dl.bintray.com/boostorg/release/1.{version}.{minor_version}/source/",
+            "url": bintray_boost + "release/1.{version}.{minor_version}/source/",
             "file": "boost_1_{version}_{minor_version}_rc{rc}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": ""
         },
         "release": {
-            "url": "https://dl.bintray.com/boostorg/release/",
+            "url": bintray_boost + "release/",
             "file": "boost_1_{version}_{minor_version}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": ""
