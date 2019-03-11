@@ -434,7 +434,7 @@ class Builder(object):
         t = Timer("Build msvc-" + vc + "-" + arch)
         t.start()
 
-        cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-dir=" + self.build_path + "/bin.v2 --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 stage"
+        cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-dir=" + self.build_path + "/bin.v2 --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86  --prefix=.\ --libdir=lib" + arch + "-msvc-" + vc + " --includedir=garbage_headers install"
         print("Running: " + cmd)
         subprocess.call(cmd, shell=True)
 
@@ -446,10 +446,6 @@ class Builder(object):
 
         subprocess.call(cmd + " >> " + arch + "bitlog.txt 2>&1", shell=True)
 
-        lib_dir = "lib" + arch + "-msvc-" + vc
-        shutil.move("stage/lib", lib_dir)
-        os.rmdir("stage")
-
         #TODO Generate DEPENDENCY_VERSIONS.txt automatically
         shutil.copy("../DEPENDENCY_VERSIONS.txt", "lib" + arch + "-msvc-" + vc + "/DEPENDENCY_VERSIONS.txt")
 
@@ -460,19 +456,19 @@ class Builder(object):
         subprocess.call(cmd, shell=True)
 
     def midway_cleanup(self):
-        garbage_headers = os.path.join(self.source_path, "garbage_headers")
-        if os.path.exists(garbage_headers):
-            shutil.rmtree(garbage_headers)
-
-        intermediates = self.build_path + "/bin.v2"
-        if not self.keep_intermediate and os.path.exists(intermediates):
-            shutil.rmtree(intermediates)
-
+        shutil.rmtree(os.path.join(self.source_path, "garbage_headers"))
         shutil.copy("DEPENDENCY_VERSIONS.txt", os.path.join(self.source_path, "DEPENDENCY_VERSIONS.txt"))
 
     def make_archive(self):
+        if self.keep_intermediate:
+            shutil.move(os.path.join(self.source_path, "bin.v2"), "bin.v2")
+        else:
+            shutil.rmtree(os.path.join(self.source_path, "bin.v2"))
         archive = self.source + self.archive_suffix + "-bin-msvc-all-32-64.7z"
         subprocess.call(self.zip_cmd + " a " + archive + " " + self.source_path)
+        if self.keep_intermediate:
+            shutil.move("bin.v2", os.path.join(self.source_path, "bin.v2"))
+
 
     def make_installer_options(self, arch, vc):
         options = {
