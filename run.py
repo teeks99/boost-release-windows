@@ -16,13 +16,13 @@ except ImportError: # Python 2
     from urllib import urlretrieve
 
 
-VERSION = "70"
+VERSION = "71"
 MINOR_VERSION = "0"
-#TYPE = "beta-rc"
-TYPE = "rc"
+TYPE = "beta-rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 3
+RC = 1
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "ReleaseBuild"
