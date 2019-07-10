@@ -79,7 +79,7 @@ REPOS = {
             "archive_suffix": ""
         },
         "release": {
-            "url": bintray_boost + "release/",
+            "url": bintray_boost + "release/1.{version}.{minor_version}/source/",
             "file": "boost_1_{version}_{minor_version}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": ""
