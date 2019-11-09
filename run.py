@@ -8,6 +8,7 @@ import multiprocessing
 import datetime
 import sys
 import argparse
+import tarfile
 from string import Template
 from timer import Timer
 try:
@@ -39,7 +40,7 @@ tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.17"
 python3_ver = "3.8.0"
-pyvers = ["27", "37"]
+pyvers = ["27", "38"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
 zlib_ver = "1.2.8"
@@ -149,10 +150,14 @@ class Archive(object):
                 pass
 
     def extract(self):
-        unzip_name = self.local_file
-        for extension in reversed(self.extensions):
-            subprocess.call(self.zip_cmd + " x " + unzip_name)
-            unzip_name = unzip_name[:-len(extension)]
+        if self.zip_cmd is "tarfile":
+            with tarfile.open(self.local_file) as tf:
+                tf.extractall()
+        else:
+            unzip_name = self.local_file
+            for extension in reversed(self.extensions):
+                subprocess.call(self.zip_cmd + " x " + unzip_name)
+                unzip_name = unzip_name[:-len(extension)]
 
     def get(self):
         self.download()
@@ -302,7 +307,7 @@ class Builder(object):
             self.source = "boost"
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
-        self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
+        self.zip_cmd = "tarfile"
         self.inno_cmd = os.path.join(self.build_path, "InnoSetup5/Compil32.exe")
         self.times = os.path.abspath(self.times)
         self.set_source_info()
