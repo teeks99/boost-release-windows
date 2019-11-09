@@ -151,6 +151,7 @@ class Archive(object):
 
     def extract(self):
         if self.zip_cmd == "tarfile":
+            print(f"Extracting: {self.local_file}")
             with tarfile.open(self.local_file) as tf:
                 tf.extractall()
         else:
