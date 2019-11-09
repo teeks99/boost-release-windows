@@ -37,8 +37,8 @@ PACKAGE_PROCESSES = 16
 # Binary packages used during build, that we can't get from upstream
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
-python2_ver = "2.7.16"
-python3_ver = "3.7.4"
+python2_ver = "2.7.17"
+python3_ver = "3.8.0"
 pyvers = ["27", "37"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
