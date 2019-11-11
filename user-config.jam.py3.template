@@ -1,10 +1,10 @@
 import toolset : using ;
 
 using python
-: 3.7 # version
+: 3.8 # version
 : # Interperter/path to dir
-: ${PY37_32include} # includes
-: ${PY37_32libs} # libs
+: ${PY38_32include} # includes
+: ${PY38_32libs} # libs
 : # conditions
 ;
 
