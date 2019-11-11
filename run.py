@@ -308,7 +308,8 @@ class Builder(object):
             self.source = "boost"
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
-        self.zip_cmd = "tarfile"
+        self.ext_zip_cmd = "tarfile"
+        self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "InnoSetup5/Compil32.exe")
         self.times = os.path.abspath(self.times)
         self.set_source_info()
@@ -382,7 +383,7 @@ class Builder(object):
             self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
 
     def make_dep_archives(self):
-        z = self.zip_cmd
+        z = self.ext_zip_cmd
         a = self.archives
         a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-32", [".tar", ".xz"]))
         a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-64", [".tar", ".xz"]))
