@@ -438,11 +438,21 @@ class Builder(object):
 
     def build_version(self, arch, vc):
         self.make_user_config(vc)
+        lib_dir = "lib" + arch + "-msvc-" + vc
 
         t = Timer("Build msvc-" + vc + "-" + arch)
         t.start()
 
-        cmd = "b2 -j%NUMBER_OF_PROCESSORS% --without-mpi --build-dir=" + self.build_path + "/bin.v2 --build-type=complete toolset=msvc-" + vc + " address-model=" + arch + " architecture=x86 stage"
+        cmd = "b2"
+        cmd += " -j%NUMBER_OF_PROCESSORS%"
+        cmd += " --without-mpi"
+        cmd += " --build-dir=" + self.build_path + "/bin.v2"
+        cmd += " --stage-libdir=" + lib_dir
+        cmd += " --build-type=complete"
+        cmd += " toolset=msvc-" + vc
+        cmd += " address-model=" + arch 
+        cmd += " architecture=x86"
+        cmd += " stage"
         print("Running: " + cmd)
         subprocess.call(cmd, shell=True)
 
@@ -453,10 +463,6 @@ class Builder(object):
             log.write(cmd + "\n")
 
         subprocess.call(cmd + " >> " + arch + "bitlog.txt 2>&1", shell=True)
-
-        lib_dir = "lib" + arch + "-msvc-" + vc
-        shutil.move("stage/lib", lib_dir)
-        os.rmdir("stage")
 
         #TODO Generate DEPENDENCY_VERSIONS.txt automatically
         shutil.copy("../DEPENDENCY_VERSIONS.txt", "lib" + arch + "-msvc-" + vc + "/DEPENDENCY_VERSIONS.txt")
