@@ -19,8 +19,8 @@ except ImportError: # Python 2
 
 VERSION = "73"
 MINOR_VERSION = "0"
-TYPE = "master-snapshot"
-#TYPE = "beta-rc"
+#TYPE = "master-snapshot"
+TYPE = "beta-rc"
 #TYPE = "rc"
 REPO = "bintray"
 BETA = 1
