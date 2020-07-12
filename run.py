@@ -17,11 +17,11 @@ except ImportError: # Python 2
     from urllib import urlretrieve
 
 
-VERSION = "73"
+VERSION = "74"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-#TYPE = "beta-rc"
-TYPE = "rc"
+TYPE = "beta-rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
 RC = 1
