@@ -209,6 +209,8 @@ def make_installer(options):
     shutil.move(o['source_archive_output'], o['source'])
     shutil.copytree(os.path.join(o['source_path'], o['libs']), os.path.join(o['source'], o['libs']))
 
+    trim_long_files(o['source'])
+
     replace = {"FILL_VERSION": o['version'], "FILL_CONFIG": o['config'], "FILL_SOURCE": o['source'], "FILL_NUM_THREADS": o['compression_threads']}
     with open(os.path.join(o['build_path'], "BoostWinInstaller-PyTemplate.iss"), "r") as installer_template:
         stemplate = Template(installer_template.read())
@@ -221,6 +223,20 @@ def make_installer(options):
     shutil.move(os.path.join(o['tmp_build_dir'], installer_file), installer_file)
     shutil.rmtree(o['tmp_build_dir'])
     print("Installer " + installer_file + " complete")
+
+
+def trim_long_files(dirpath):
+    for root, dirs, files in os.walk(dirpath, topdown=False):
+        for file in files:
+            p = os.path.abspath(os.path.join(root, file))
+            if len(p) > 250:
+                print("removing file" + p)
+                os.remove(p)
+        for subdir in dirs:
+            p = os.path.abspath(os.path.join(root, subdir))
+            if len(p) > 250:
+                print("removing directory" + p)
+                os.rmdir(p)
 
 
 class Builder(object):
