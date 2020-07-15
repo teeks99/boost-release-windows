@@ -27,7 +27,7 @@ BETA = 1
 RC = 1
 
 BUILD_DRIVE = "D:" + os.sep
-BUILD_DIR = "ReleaseBuild"
+BUILD_DIR = "RB"
 TIMES = "times.txt"
 
 vc_versions = ["10.0", "11.0", "12.0", "14.0", "14.1", "14.2"]
