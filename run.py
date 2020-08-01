@@ -20,8 +20,8 @@ except ImportError: # Python 2
 VERSION = "74"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-TYPE = "beta-rc"
-#TYPE = "rc"
+#TYPE = "beta-rc"
+TYPE = "rc"
 REPO = "bintray"
 BETA = 1
 RC = 1
@@ -209,7 +209,7 @@ def make_installer(options):
     shutil.move(o['source_archive_output'], o['source'])
     shutil.copytree(os.path.join(o['source_path'], o['libs']), os.path.join(o['source'], o['libs']))
 
-    trim_long_files(o['source'])
+    #trim_long_files(o['source'])
 
     replace = {"FILL_VERSION": o['version'], "FILL_CONFIG": o['config'], "FILL_SOURCE": o['source'], "FILL_NUM_THREADS": o['compression_threads']}
     with open(os.path.join(o['build_path'], "BoostWinInstaller-PyTemplate.iss"), "r") as installer_template:
