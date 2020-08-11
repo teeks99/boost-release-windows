@@ -24,7 +24,7 @@ MINOR_VERSION = "0"
 TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 1
+RC = 2
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
