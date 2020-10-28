@@ -17,14 +17,14 @@ except ImportError: # Python 2
     from urllib import urlretrieve
 
 
-VERSION = "74"
+VERSION = "75"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
-TYPE = "rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 2
+RC = 1
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
@@ -38,8 +38,8 @@ PACKAGE_PROCESSES = 16
 # Binary packages used during build, that we can't get from upstream
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
-python2_ver = "2.7.17"
-python3_ver = "3.8.2"
+python2_ver = "2.7.18"
+python3_ver = "3.9.0"
 pyvers = ["27", "38"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
