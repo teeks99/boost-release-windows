@@ -16,6 +16,7 @@ try:
 except ImportError: # Python 2
     from urllib import urlretrieve
 
+import repo_paths
 
 VERSION = "75"
 MINOR_VERSION = "0"
@@ -25,6 +26,8 @@ TYPE = "beta-rc"
 REPO = "bintray"
 BETA = 1
 RC = 1
+
+release_extension = "tar.bz2"
 
 BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
@@ -53,64 +56,6 @@ bzip2_base_path = tk_boost_deps
 inno_ver = "5.6.1_tk1"
 inno_compression_threads = 6
 
-bintray_boost = "https://dl.bintray.com/boostorg/"
-REPOS = {
-    "bintray": {
-        "master-snapshot": {
-            "url": bintray_boost + "master/",
-            "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": "-snapshot"
-        },
-        "beta-rc": {
-            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
-            "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": "_b{beta}_rc{rc}"
-        },
-        "beta": {
-            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
-            "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": "_b{beta}"
-        },
-        "rc": {
-            "url": bintray_boost + "release/1.{version}.{minor_version}/source/",
-            "file": "boost_1_{version}_{minor_version}_rc{rc}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": ""
-        },
-        "release": {
-            "url": bintray_boost + "release/1.{version}.{minor_version}/source/",
-            "file": "boost_1_{version}_{minor_version}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": ""
-        }
-    },
-    "local": {
-        "b1": {
-            "url": "none",
-            "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
-            "source_archive_output": "boost_1_{version}_{minor_version}"
-        }
-    },
-    "git": {
-        "develop": {
-            "url": "https://github.com/boostorg/boost",
-            "branch": "develop",
-            "source_archive_output": "boost",
-            "archive_suffix": "",
-            "file": ""
-        },
-        "master": {
-            "url": "https://github.com/boostorg/boost",
-            "branch": "master",
-            "source_archive_output": "boost",
-            "archive_suffix": "",
-            "file": ""
-        }
-    }
-}
 
 
 class Archive(object):
@@ -331,10 +276,11 @@ class Builder(object):
         self.set_source_info()
 
     def set_source_info(self):
-        config = REPOS[self.repo][self.type]
+        config = repo_paths.REPOS[self.repo][self.type]
         replace = {
             "beta": self.beta, "rc": self.rc, "version": self.version,
-            "minor_version": self.minor_version}
+            "minor_version": self.minor_version,
+            "file_extension": release_extension}
         if not self.archive_suffix:
             self.archive_suffix = config["archive_suffix"].format(**replace)
 
@@ -394,7 +340,8 @@ class Builder(object):
 
     def make_source_archive(self):
         if self.repo == "git":
-            self.archives.append(GitArchive(self.url, REPOS[self.repo][self.type]["branch"], self.source_path))
+            self.archives.append(GitArchive(
+                self.url, repo_paths.REPOS[self.repo][self.type]["branch"], self.source_path))
         else:
             self.archives.append(Archive(self.zip_cmd, self.url, self.file, local_file=self.source))
 
