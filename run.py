@@ -63,13 +63,13 @@ REPOS = {
             "archive_suffix": "-snapshot"
         },
         "beta-rc": {
-            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta.{beta}/source/",
+            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}_rc{rc}"
         },
         "beta": {
-            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta.{beta}/source/",
+            "url": bintray_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
             "file": "boost_1_{version}_{minor_version}{archive_suffix}.tar.bz2",
             "source_archive_output": "boost_1_{version}_{minor_version}",
             "archive_suffix": "_b{beta}"
