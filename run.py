@@ -25,7 +25,7 @@ TYPE = "beta-rc"
 #TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 1
+RC = 2
 
 release_extension = "tar.bz2"
 
