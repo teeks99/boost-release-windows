@@ -21,11 +21,11 @@ import repo_paths
 VERSION = "75"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-TYPE = "beta-rc"
-#TYPE = "rc"
+#TYPE = "beta-rc"
+TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 2
+RC = 1
 
 release_extension = "tar.bz2"
 
