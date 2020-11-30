@@ -270,7 +270,7 @@ class Builder(object):
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.ext_zip_cmd = "tarfile"
-        self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
+        self.zip_cmd = os.path.join(self.build_path, "7z1900/x64/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "InnoSetup5/Compil32.exe")
         self.times = os.path.abspath(self.times)
         self.set_source_info()
