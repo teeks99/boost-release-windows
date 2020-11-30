@@ -46,10 +46,11 @@ python3_ver = "3.9.0"
 pyvers = ["27", "38"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
-zlib_ver = "1.2.8"
-zlib_base_path = "http://www.zlib.net/fossils/"
+zlib_ver = "1.2.11"
+#zlib_base_path = "http://www.zlib.net/fossils/"
+zlib_base_path = tk_boost_deps
 
-bzip2_ver = "1.0.6"
+bzip2_ver = "1.0.8"
 #bzip2_base_path = "http://www.bzip.org/"
 bzip2_base_path = tk_boost_deps
 
