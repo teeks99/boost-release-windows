@@ -57,6 +57,9 @@ bzip2_base_path = tk_boost_deps
 inno_ver = "5.6.1_tk1"
 inno_compression_threads = 6
 
+sevenzip_ver = "1900"
+sevenzip_base_path = tk_boost_deps
+
 
 
 class Archive(object):
@@ -271,7 +274,8 @@ class Builder(object):
         self.source_path = os.path.join(self.build_path, self.source)
         self.lib_check_path = os.path.join(self.build_path, self.lib_check_dir)
         self.ext_zip_cmd = "tarfile"
-        self.zip_cmd = os.path.join(self.build_path, "7z1604/x64/7za.exe")
+        self.zip_cmd = os.path.join(
+            self.build_path, "7z" + sevenzip_ver, "x64/7za.exe")
         self.inno_cmd = os.path.join(self.build_path, "InnoSetup5/Compil32.exe")
         self.times = os.path.abspath(self.times)
         self.set_source_info()
@@ -357,6 +361,7 @@ class Builder(object):
         #a.append(Archive(z, bzip2_base_path + bzip2_ver + "/", "bzip2-" + bzip2_ver, [".tar", ".gz"]))
         a.append(Archive(z, bzip2_base_path, "bzip2-" + bzip2_ver, [".tar", ".gz"]))
         a.append(Archive(z, tk_boost_deps, "InnoSetup-" + inno_ver, [".tar", ".xz"]))
+        a.append(Archive(z, sevenzip_base_path, "7z" + sevenzip_ver, [".tar", ".xz"]))
 
     def get_and_extract_archives(self):
         for a in self.archives:
