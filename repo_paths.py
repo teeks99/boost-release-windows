@@ -1,5 +1,5 @@
 
-bintray_boost = "https://dl.bintray.com/boostorg/"
+bintray_boost = "https://boostorg.jfrog.io/artifactory/main/"
 REPOS = {
     "bintray": {
         "master-snapshot": {
