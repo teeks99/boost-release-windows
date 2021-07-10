@@ -18,14 +18,14 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "76"
+VERSION = "77"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-#TYPE = "beta-rc"
-TYPE = "rc"
+TYPE = "beta-rc"
+#TYPE = "rc"
 REPO = "bintray"
 BETA = 1
-RC = 2
+RC = 1
 
 release_extension = "tar.bz2"
 
@@ -321,7 +321,7 @@ class Builder(object):
                 [self.python_compressed(pyver)], ["32", "64"], ["include", "libs"]):
             self.make_python_config_path(version, arch, end)
 
-        repo_dir = os.path.dirname(os.path.relpath(__file__))
+        repo_dir = os.path.dirname(os.path.abspath(__file__))
         template = None
         if pyver[0] == "2":
             template = os.path.join(self.build_path, "user-config.jam.py2.template")
