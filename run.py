@@ -23,7 +23,7 @@ MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
 #TYPE = "beta-rc"
 TYPE = "rc"
-REPO = "bintray"
+REPO = "jfrog"
 BETA = 1
 RC = 1
 
