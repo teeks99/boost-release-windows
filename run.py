@@ -18,11 +18,11 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "77"
+VERSION = "78"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
-TYPE = "rc"
+#TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
 RC = 1
@@ -42,7 +42,7 @@ PACKAGE_PROCESSES = 16
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.18"
-python3_ver = "3.9.0"
+python3_ver = "3.10.0"
 pyvers = ["27", "38"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
