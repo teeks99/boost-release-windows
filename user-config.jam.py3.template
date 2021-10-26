@@ -1,17 +1,17 @@
 import toolset : using ;
 
 using python
-: 3.9 # version
+: 3.10 # version
 : # Interperter/path to dir
-: ${PY39_32include} # includes
-: ${PY39_32libs} # libs
+: ${PY310_32include} # includes
+: ${PY310_32libs} # libs
 : # conditions
 ;
 
 using python
-: 3.9 # version
+: 3.10 # version
 : # Interperter/path to dir
-: ${PY39_64include} # includes
-: ${PY39_64libs} # libs
+: ${PY310_64include} # includes
+: ${PY310_64libs} # libs
 : <address-model>64 # conditions
 ;
