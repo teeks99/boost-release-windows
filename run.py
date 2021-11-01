@@ -519,7 +519,7 @@ class Builder(object):
             if version in ["8.0", "9.0"]:  # old .vcproj users
                 extension = ".vcproj"
             name, minor = version.split(".")
-            if version in ["14.1", "14.2"]:  # Use dotted name for these
+            if version in ["14.1", "14.2", "14.3"]:  # Use dotted name for these
                 name = version
             proj = "BoostLibraryCheck-VC" + name + extension
 
