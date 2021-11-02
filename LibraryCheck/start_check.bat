@@ -1,19 +1,17 @@
-REM Uses a hard-coded Visual Studio 2017 paths
+REM Uses a hard-coded Visual Studio paths
 
-set enterprise="C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
-set professional="C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\Common7\Tools\VsDevCmd.bat"
-
-
-if exist %enterprise% (
-  call %enterprise%
-) else (
-  if exist %professional% (
-    call %professional%
-  ) else (
-    echo No msbuild with msvc-14.1 found
-    exit /b 1
+for /f "delims=" %%G IN (devtools_paths.txt) DO (
+  if exist "%%G" (
+    echo using %%G
+    call "%%G"
+    goto :found
   )
 )
+:notfound
+echo No VsDevCmd.bat for msbuild found
+pause
+exit /b 1
 
+:found
 msbuild make.msbuild
 pause

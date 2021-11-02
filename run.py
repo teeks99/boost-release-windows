@@ -539,6 +539,7 @@ class Builder(object):
                 f.write(l64)
 
     def start_lib_check(self):
+        print("Starting Library Check in another window")
         subprocess.call('start "Library Check" /d ' + self.lib_check_path +
                         ' start_check.bat' , shell=True)
 
