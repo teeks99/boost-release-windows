@@ -12,6 +12,8 @@ msvc-14.1   32      X       X       X
 msvc-14.1   64      X       X       X
 msvc-14.2   32      X       X       X
 msvc-14.2   64      X       X       X
+msvc-14.3   32      X       X       X
+msvc-14.3   64      X       X       X
 
 Compile means that the b2 command completed without errors
 Link means that visual studio was able to link a sample executable to a library (libboost_thread-vcXXX-mt[-gd]-1_XX.lib) generated
