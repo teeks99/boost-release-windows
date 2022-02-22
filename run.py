@@ -18,11 +18,11 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "78"
+VERSION = "79"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
-TYPE = "rc"
+#TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
 RC = 1
@@ -36,7 +36,7 @@ TIMES = "times.txt"
 vc_versions = ["10.0", "11.0", "12.0", "14.0", "14.1", "14.2", "14.3"]
 vc_archs = ["32", "64"]
 
-PACKAGE_PROCESSES = 16
+PACKAGE_PROCESSES = 8
 
 # Binary packages used during build, that we can't get from upstream
 tk_boost_deps = "https://boost.teeks99.com/deps/"
