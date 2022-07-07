@@ -21,7 +21,8 @@ import repo_paths
 VERSION = "80"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-TYPE = "beta-rc"
+#TYPE = "beta-rc"
+TYPE = "beta"
 #TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
