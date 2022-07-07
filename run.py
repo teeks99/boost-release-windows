@@ -18,10 +18,10 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "79"
+VERSION = "80"
 MINOR_VERSION = "0"
-TYPE = "master-snapshot"
-#TYPE = "beta-rc"
+#TYPE = "master-snapshot"
+TYPE = "beta-rc"
 #TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
@@ -403,6 +403,7 @@ class Builder(object):
                 dep_ver.write(vs_versions.read())
 
     def bootstrap(self):
+        print("bootstrap.bat")
         subprocess.call("bootstrap.bat", shell=True)
 
     def build_version(self, arch, vc):
