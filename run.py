@@ -43,11 +43,11 @@ PACKAGE_PROCESSES = 8
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.18"
-python3_ver = "3.10.0"
+python3_ver = "3.10.8"
 pyvers = ["27", "38"]
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
-zlib_ver = "1.2.11"
+zlib_ver = "1.2.13"
 #zlib_base_path = "http://www.zlib.net/fossils/"
 zlib_base_path = tk_boost_deps
 
@@ -58,7 +58,7 @@ bzip2_base_path = tk_boost_deps
 inno_ver = "5.6.1_tk1"
 inno_compression_threads = 6
 
-sevenzip_ver = "1900"
+sevenzip_ver = "2201"
 sevenzip_base_path = tk_boost_deps
 
 
