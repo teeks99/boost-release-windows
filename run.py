@@ -26,7 +26,7 @@ MINOR_VERSION = "0"
 TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
-RC = 1
+RC = 2
 
 release_extension = "tar.bz2"
 
