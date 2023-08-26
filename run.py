@@ -18,15 +18,15 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "83"
+VERSION = "84"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
 #TYPE = "beta"
-TYPE = "rc"
+#TYPE = "rc"
 REPO = "jfrog"
 BETA = 1
-RC = 2
+RC = 1
 
 release_extension = "tar.bz2"
 
