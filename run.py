@@ -43,11 +43,10 @@ PACKAGE_PROCESSES = 8
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python2_ver = "2.7.18"
-python3_ver = "3.10.8"
-pyvers = ["27", "38"]
+python3_ver = "3.12.0"
 py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
-zlib_ver = "1.2.13"
+zlib_ver = "1.3"
 #zlib_base_path = "http://www.zlib.net/fossils/"
 zlib_base_path = tk_boost_deps
 
