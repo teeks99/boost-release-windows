@@ -34,7 +34,7 @@ BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
 TIMES = "times.txt"
 
-vc_versions = ["10.0", "11.0", "12.0", "14.0", "14.1", "14.2", "14.3"]
+vc_versions = ["14.0", "14.1", "14.2", "14.3"]
 vc_archs = ["32", "64"]
 
 PACKAGE_PROCESSES = 8
