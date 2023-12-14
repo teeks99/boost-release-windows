@@ -20,10 +20,11 @@ import repo_paths
 
 VERSION = "85"
 MINOR_VERSION = "0"
-TYPE = "master-snapshot"
+#TYPE = "master-snapshot"
 #TYPE = "beta-rc"
-#TYPE = "beta"
+TYPE = "beta"
 #TYPE = "rc"
+#TYPE = "release"
 REPO = "jfrog"
 BETA = 1
 RC = 1
