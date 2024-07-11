@@ -10,9 +10,9 @@ REPOS = {
         },
         "beta-rc": {
             "url": jfrog_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
-            "file": "boost_1_{version}_{minor_version}{archive_suffix}.{file_extension}",
+            "file": "boost_1_{version}_{minor_version}{archive_suffix}_rc{rc}.{file_extension}",
             "source_archive_output": "boost_1_{version}_{minor_version}",
-            "archive_suffix": "_b{beta}_rc{rc}"
+            "archive_suffix": "_b{beta}"
         },
         "beta": {
             "url": jfrog_boost + "beta/1.{version}.{minor_version}.beta{beta}/source/",
