@@ -1,4 +1,12 @@
-Go to sourceforge, make a directory, set it as staged.
+For each beta/rc create the staging directory and download the source (for beta 1, rc 1)
+
+python3 stage_release.py -v XX -b 1 -r 1
+
+Build on azure rsync logs, 7z archive, installers to bart.teeks99.com:/mnt/fs/Software/Boost/staging/bin/1.XX.0_b1_rc1/
+
+Make symlinks from staging to real directory
+
+chmod 755 bin/RELEASE_DIR/*
 
 Make Checksums
 cd bin/RELEASEDIR
@@ -6,7 +14,14 @@ sha256sum * > SHA256SUMS
 
 gpg --clearsign SHA256SUMS
 
+Go to sourceforge, make a directory, set it as staged.
 Use rsync to upload:
-rsync -aP bin/RELEASE_DIR teeks99@frs.sourceforge.net:/home/frs/project/boost/boost-binaries/
+rsync -aP bin/RELEASE_DIR/ teeks99@frs.sourceforge.net:/home/frs/project/boost/boost-binaries/RELEASE_DIR/
 
+Modify artifactory_upload.py with correct version, run.
 
+Modify aws_upload.py with correct version, run.
+
+When release/beta drops, delete symlinks and move from staging to real dir. 
+Edit html for new version (release only)
+Run to_server.bash
