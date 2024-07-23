@@ -20,14 +20,14 @@ import repo_paths
 
 VERSION = "86"
 MINOR_VERSION = "0"
-TYPE = "master-snapshot"
-#TYPE = "beta-rc"
+#TYPE = "master-snapshot"
+TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
 #TYPE = "rc"
 #TYPE = "release" # Never used, build RC
 REPO = "jfrog"
 BETA = 1
-RC = 1
+RC = 2
 
 release_extension = "tar.bz2"
 
