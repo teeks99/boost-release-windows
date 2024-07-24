@@ -27,7 +27,7 @@ TYPE = "beta-rc"
 #TYPE = "release" # Never used, build RC
 REPO = "jfrog"
 BETA = 1
-RC = 3
+RC = 4
 
 release_extension = "tar.bz2"
 
