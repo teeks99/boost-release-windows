@@ -25,6 +25,7 @@ TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
 #TYPE = "rc"
 #TYPE = "release" # Never used, build RC
+#TYPE = "release"
 REPO = "jfrog"
 BETA = 1
 RC = 4
