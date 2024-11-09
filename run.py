@@ -35,7 +35,7 @@ BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
 TIMES = "times.txt"
 
-vc_versions = ["14.0", "14.1", "14.2", "14.3"]
+vc_versions = ["14.1", "14.2", "14.3"]
 vc_archs = ["32", "64"]
 
 PACKAGE_PROCESSES = 8
@@ -43,9 +43,7 @@ PACKAGE_PROCESSES = 8
 # Binary packages used during build, that we can't get from upstream
 tk_boost_deps = "https://boost.teeks99.com/deps/"
 
-python2_ver = "2.7.18"
 python3_ver = "3.12.0"
-py2use = ["8.0", "9.0", "10.0", "11.0", "12.0"]
 
 zlib_ver = "1.3"
 #zlib_base_path = "http://www.zlib.net/fossils/"
@@ -306,8 +304,6 @@ class Builder(object):
             raise Exception("~/user-config.jam already exists and would be replaced, please remove it manually")
 
     def python_ver_for_vc(self, vcver):
-        if vcver in py2use:
-            return python2_ver
         return python3_ver
 
     def python_compressed(self, ver):
@@ -354,8 +350,6 @@ class Builder(object):
     def make_dep_archives(self):
         z = self.ext_zip_cmd
         a = self.archives
-        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-32", [".tar", ".xz"]))
-        a.append(Archive(z, tk_boost_deps, "Python" + python2_ver + "-64", [".tar", ".xz"]))
         a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-32", [".tar", ".xz"]))
         a.append(Archive(z, tk_boost_deps, "Python" + python3_ver + "-64", [".tar", ".xz"]))
         a.append(Archive(z, zlib_base_path, "zlib-" + zlib_ver, [".tar", ".gz"]))
