@@ -386,9 +386,6 @@ class Builder(object):
     def make_dependency_versions(self, out="DEPENDENCY_VERSIONS.txt", pyvers=["2", "3"]):
         with open("VS_DEPENDENCY_VERSIONS.txt", "r") as vs_versions:
             with open(out, "w") as dep_ver:
-                if "2" in pyvers:
-                    dep_ver.write("Python 2: " + python2_ver + "\n")
-                    dep_ver.write("Python 2: " + python2_ver + " amd64\n")
                 if "3" in pyvers:
                     dep_ver.write("Python 3: " + python3_ver + "\n")
                     dep_ver.write("Python 3: " + python3_ver + " amd64\n")
