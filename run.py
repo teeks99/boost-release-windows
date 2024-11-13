@@ -27,7 +27,7 @@ TYPE = "beta-rc"
 #TYPE = "release" # Never used, build RC
 REPO = "archives"
 BETA = 1
-RC = 2
+RC = 3
 
 release_extension = "tar.bz2"
 
