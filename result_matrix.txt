@@ -1,7 +1,5 @@
 
 toolset     arch    compile Link    Execute
-msvc-14.0   32      X       X       X
-msvc-14.0   64      X       X       X
 msvc-14.1   32      X       X       X
 msvc-14.1   64      X       X       X
 msvc-14.2   32      X       X       X
