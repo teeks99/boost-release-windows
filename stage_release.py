@@ -8,7 +8,7 @@ except ImportError: # Python 2
 import repo_paths
 
 supported_extensions = ["7z", "tar.bz2", "tar.gz", "zip"]
-repo = "bintray"
+repo = "archives"
 staging = "staging"
 
 
