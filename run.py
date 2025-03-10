@@ -20,8 +20,8 @@ import repo_paths
 
 VERSION = "88"
 MINOR_VERSION = "0"
-TYPE = "master-snapshot"
-#TYPE = "beta-rc"
+#TYPE = "master-snapshot"
+TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
 #TYPE = "rc"
 #TYPE = "release" # Never used, build RC
