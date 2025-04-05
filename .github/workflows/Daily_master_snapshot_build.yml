@@ -1,0 +1,28 @@
+name: Daily Integration master-snapshot
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+
+
+jobs:
+  build:
+
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        vc_arch: [32, 64]
+        vc_ver: [14.3]
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: run python build script
+      working-directory: .
+      run: python ./run.py --type=master-snapshot --vc-arch ${{ matrix.vc_arch }} --vc-ver ${{ matrix.vc_ver }}
+
