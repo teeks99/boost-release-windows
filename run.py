@@ -18,7 +18,7 @@ except ImportError: # Python 2
 
 import repo_paths
 
-VERSION = "88"
+VERSION = "89"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
 TYPE = "beta-rc"
