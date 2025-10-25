@@ -3,7 +3,7 @@ run-name: Build and test
 on: [push]
 jobs:
   BuildInstallers:
-    runs-on: burns31
+    runs-on: win-build-amd64
     steps:
       - run: echo "Job has run"
       - name: Check out repository code
