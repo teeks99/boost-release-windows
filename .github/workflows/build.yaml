@@ -2,7 +2,7 @@ name: Build and Test
 run-name: Build and test
 on: [push]
 jobs:
-  Echo Something:
+  Echo-Something:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Job has run"
