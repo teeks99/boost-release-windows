@@ -8,5 +8,7 @@ jobs:
       - run: echo "Job has run"
       - name: Check out repository code
         uses: actions/checkout@v5
-      - run: del /Q %USERPROFILE%/user-config.jam*
+      - name: Remove user-config.jam
+        shell: pwsh
+        run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
       - run: python run.py
