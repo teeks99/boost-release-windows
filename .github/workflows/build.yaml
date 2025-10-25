@@ -8,4 +8,5 @@ jobs:
       - run: echo "Job has run"
       - name: Check out repository code
         uses: actions/checkout@v5
+      - run: del /Q %USERPROFILE%/user-config.jam*
       - run: python run.py
