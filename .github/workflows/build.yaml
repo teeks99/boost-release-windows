@@ -2,10 +2,12 @@ name: Build and Test
 run-name: Build and test
 on: [push]
 jobs:
-  Echo-Something:
-    runs-on: ubuntu-latest
+  BuildInstallers:
+    runs-on: burns31
     steps:
       - run: echo "Job has run"
       - name: Check out repository code
         uses: actions/checkout@v5
       - run: echo "This job's status is ${{ job.status }}."
+      - run: |
+         echo I was here > C:/temp/action_ran.txt
