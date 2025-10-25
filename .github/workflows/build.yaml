@@ -9,6 +9,5 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v5
       - name: Remove user-config.jam
-        shell: pwsh
         run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
       - run: python run.py
