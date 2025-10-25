@@ -46,7 +46,7 @@ tk_boost_deps = "https://boost.teeks99.com/deps/"
 
 python3_ver = "3.14.0"
 
-zlib_ver = "1.3"
+zlib_ver = "1.3.1"
 #zlib_base_path = "http://www.zlib.net/fossils/"
 zlib_base_path = tk_boost_deps
 
