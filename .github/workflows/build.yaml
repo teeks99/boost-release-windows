@@ -2,34 +2,71 @@ name: Build and Test
 run-name: Build and test
 on: [push]
 jobs:
+  StartupVM:
+    runs-on: ubuntu-latest
+    environment: vm-builder
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Start VM
+        uses: azure/cli@v2
+        with: 
+          azcliversion: 2.30.0
+          inlineScript: |
+            $GITHUB_WORKSPACE/burns31_build.bash
+
   BuildInstallers:
     runs-on: win-build-amd64
+    needs: [StartupVM]
     steps:
       - run: echo "Job has run"
       - name: Check out repository code
         uses: actions/checkout@v5
       - name: Remove user-config.jam
         run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
-      #TEMP- name: Remove build directory
-      #TEMP  run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
-      #TEMP- run: python run.py
+#      - name: Remove build directory
+#        run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
+#      - run: python run.py
       - name: Versions Artifact
         uses: actions/upload-artifact@v4
         with: 
           name: build-versions
           path: D:/RB/DEPENDENCY_VERSIONS.txt
-      - name: Build Logs Artifact
-        uses: actions/upload-artifact@v4
+      # - name: Build Logs Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: build-Logs
+      #     path: D:/RB/boost*log.txt
+      # - name: Full Build
+      #   uses: actions/upload-artifact@v4
+      #   with: 
+      #     name: full-build
+      #     path: D:/RB/boost*msvc-all*.7z
+      # - name: Installers Build
+      #   uses: actions/upload-artifact@v4
+      #   with: 
+      #     name: installers-build
+      #     path: D:/RB/boost*.exe
+
+  DeleteVM:
+    runs-on: ubuntu-latest
+    environment: vm-builder
+    needs: [BuildInstallers]
+    if: always()
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
         with:
-          name: build-Logs
-          path: D:/RB/boost*log.txt
-      - name: Full Build
-        uses: actions/upload-artifact@v4
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete VM
+        uses: azure/cli@v2
         with: 
-          name: full-build
-          path: D:/RB/boost*msvc-all*.7z
-      - name: Installers Build
-        uses: actions/upload-artifact@v4
-        with: 
-          name: installers-build
-          path: D:/RB/boost*.exe
+          azcliversion: 2.30.0
+          inlineScript: |
+            az vm delete --resource-group vse --name burns31 --yes
