@@ -1,6 +1,10 @@
 name: Build and Test
 run-name: Build and test
 on: [push]
+permissions:
+      id-token: write
+      contents: read
+
 jobs:
   StartupVM:
     runs-on: ubuntu-latest
