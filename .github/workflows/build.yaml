@@ -32,29 +32,29 @@ jobs:
         uses: actions/checkout@v5
       - name: Remove user-config.jam
         run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
-#      - name: Remove build directory
-#        run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
-#      - run: python run.py
+      - name: Remove build directory
+        run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
+      - run: python run.py
       - name: Versions Artifact
         uses: actions/upload-artifact@v4
         with: 
           name: build-versions
           path: D:/RB/DEPENDENCY_VERSIONS.txt
-      # - name: Build Logs Artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: build-Logs
-      #     path: D:/RB/boost*log.txt
-      # - name: Full Build
-      #   uses: actions/upload-artifact@v4
-      #   with: 
-      #     name: full-build
-      #     path: D:/RB/boost*msvc-all*.7z
-      # - name: Installers Build
-      #   uses: actions/upload-artifact@v4
-      #   with: 
-      #     name: installers-build
-      #     path: D:/RB/boost*.exe
+      - name: Build Logs Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-Logs
+          path: D:/RB/boost*log.txt
+      - name: Full Build
+        uses: actions/upload-artifact@v4
+        with: 
+          name: full-build
+          path: D:/RB/boost*msvc-all*.7z
+      - name: Installers Build
+        uses: actions/upload-artifact@v4
+        with: 
+          name: installers-build
+          path: D:/RB/boost*.exe
 
   DeleteVM:
     runs-on: ubuntu-latest
