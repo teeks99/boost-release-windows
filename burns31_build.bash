@@ -10,6 +10,4 @@ az vm create --resource-group vse --name burns31 \
   --nic-delete-option Delete \
   --nsg FullLocal \
   --enable-auto-update false \
-  --patch-mode Manual \
-  --enable-hibernation false \
-  --accept-term
+  --patch-mode Manual
