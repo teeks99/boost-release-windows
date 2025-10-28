@@ -34,7 +34,6 @@ jobs:
         run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
       - name: Remove build directory
         run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
-      - run: python -c "import sys; sys.exit(1)"
       - run: python run.py
       - name: Versions Artifact
         uses: actions/upload-artifact@v4
