@@ -56,19 +56,19 @@ jobs:
           name: installers-build
           path: D:/RB/boost*.exe
 
-  DeleteVM:
-    runs-on: ubuntu-latest
-    environment: vm-builder
-    needs: [BuildInstallers]
-    if: always()
-    steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Delete VM
-        uses: azure/cli@v2
-        with: 
-          azcliversion: 2.30.0
-          inlineScript: |
-            az vm delete --resource-group vse --name burns31 --yes
+  # DeleteVM:
+  #   runs-on: ubuntu-latest
+  #   environment: vm-builder
+  #   needs: [BuildInstallers]
+  #   if: always()
+  #   steps:
+  #     - name: Azure Login
+  #       uses: azure/login@v2
+  #       with:
+  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
+  #     - name: Delete VM
+  #       uses: azure/cli@v2
+  #       with: 
+  #         azcliversion: 2.30.0
+  #         inlineScript: |
+  #           az vm delete --resource-group vse --name burns31 --yes
