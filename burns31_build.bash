@@ -1,0 +1,13 @@
+az vm create --resource-group vse --name burns31 \
+  --attach-os-disk burns31_disk1_9252430977a548f2b8002a6110d132b5 --os-type windows \
+  --os-disk-delete-option Detach \
+  --size Standard_F32s_v2 \
+  --location eastus \
+  --license-type Windows_Server \
+  --vnet-name vse-net --subnet default \
+  --public-ip-address "" \
+  --private-ip-address 10.1.0.31 \
+  --nic-delete-option Delete \
+  --nsg FullLocal \
+  --enable-auto-update false \
+  --patch-mode Manual
