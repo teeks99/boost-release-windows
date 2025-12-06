@@ -2,9 +2,9 @@ major_version: 1
 version: 90
 minor_version: 0
 
-type: master-snapshot
+#type: master-snapshot
 #type: beta-rc
-#type: rc
+type: rc
 
 beta: 1
 rc: 1
