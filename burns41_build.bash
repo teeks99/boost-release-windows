@@ -10,4 +10,7 @@ az vm create --resource-group vse --name burns41 \
   --nic-delete-option Delete \
   --nsg FullLocal \
   --enable-auto-update false \
+  --security-type TrustedLaunch \
+  --enable-secure-boot true \
+  --enable-vtpm true \
   --patch-mode Manual
