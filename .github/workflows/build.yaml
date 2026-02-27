@@ -21,7 +21,7 @@ jobs:
         with: 
           azcliversion: 2.30.0
           inlineScript: |
-            $GITHUB_WORKSPACE/burns31_build.bash
+            $GITHUB_WORKSPACE/burns41_build.bash
 
   BuildInstallers:
     runs-on: win-build-amd64

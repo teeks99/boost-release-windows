@@ -19,12 +19,12 @@ except ImportError: # Python 2
 import repo_paths
 from archive import Archive, run_remote_archive
 
-VERSION = "90"
+VERSION = "91"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
-TYPE = "rc"
+#TYPE = "rc"
 #TYPE = "release" # Never used, build RC
 REPO = "archives"
 BETA = 1
@@ -36,7 +36,7 @@ BUILD_DRIVE = "D:" + os.sep
 BUILD_DIR = "RB"
 TIMES = "times.txt"
 
-vc_versions = ["14.1", "14.2", "14.3"]
+vc_versions = ["14.1", "14.2", "14.3", "14.4"]
 vc_archs = ["32", "64"]
 
 PACKAGE_PROCESSES = 8
