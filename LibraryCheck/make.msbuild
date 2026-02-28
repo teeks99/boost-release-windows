@@ -12,7 +12,7 @@ at: C:\Windows\Microsoft.NET\Framework\v4.0.30319\msbuild.exe
 <Project DefaultTargets="All"
     xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
-    <Target Name="All" DependsOnTargets="MSVC-141;MSVC-142;MSVC-143;MSVC-144" />
+    <Target Name="All" DependsOnTargets="MSVC-141;MSVC-142;MSVC-143;MSVC-145" />
 
     <Target Name="MSVC-141" DependsOnTargets=
         "MSVC-141-D-32;MSVC-141-R-32;MSVC-141-D-64;MSVC-141-R-64" />
@@ -84,27 +84,27 @@ at: C:\Windows\Microsoft.NET\Framework\v4.0.30319\msbuild.exe
         <Exec Command="BoostLibraryCheck-VC14.3.exe" WorkingDirectory="BoostLibraryCheck-VC14.3\x64\Release" />
     </Target>
 
-     <Target Name="MSVC-144" DependsOnTargets=
-        "MSVC-144-D-32;MSVC-144-R-32;MSVC-144-D-64;MSVC-144-R-64" />
-    <Target Name="MSVC-144-D-32">
-        <MSBuild Projects="BoostLibraryCheck-VC14.4.vcxproj" Targets="Clean;Build"
+     <Target Name="MSVC-145" DependsOnTargets=
+        "MSVC-145-D-32;MSVC-145-R-32;MSVC-145-D-64;MSVC-145-R-64" />
+    <Target Name="MSVC-145-D-32">
+        <MSBuild Projects="BoostLibraryCheck-VC14.5.vcxproj" Targets="Clean;Build"
             Properties="Configuration=Debug;Platform=Win32;VisualStudioVersion=15.0" />
-        <Exec Command="BoostLibraryCheck-VC14.4.exe" WorkingDirectory="BoostLibraryCheck-VC14.4\Win32\Debug" />
+        <Exec Command="BoostLibraryCheck-VC14.5.exe" WorkingDirectory="BoostLibraryCheck-VC14.5\Win32\Debug" />
     </Target>
-    <Target Name="MSVC-144-R-32">
-        <MSBuild Projects="BoostLibraryCheck-VC14.4.vcxproj" Targets="Clean;Build"
+    <Target Name="MSVC-145-R-32">
+        <MSBuild Projects="BoostLibraryCheck-VC14.5.vcxproj" Targets="Clean;Build"
             Properties="Configuration=Release;Platform=Win32;VisualStudioVersion=15.0" />
-        <Exec Command="BoostLibraryCheck-VC14.4.exe" WorkingDirectory="BoostLibraryCheck-VC14.4\Win32\Release" />
+        <Exec Command="BoostLibraryCheck-VC14.5.exe" WorkingDirectory="BoostLibraryCheck-VC14.5\Win32\Release" />
     </Target>
-    <Target Name="MSVC-144-D-64">
-        <MSBuild Projects="BoostLibraryCheck-VC14.4.vcxproj" Targets="Clean;Build"
+    <Target Name="MSVC-145-D-64">
+        <MSBuild Projects="BoostLibraryCheck-VC14.5.vcxproj" Targets="Clean;Build"
             Properties="Configuration=Debug;Platform=x64;VisualStudioVersion=15.0" />
-        <Exec Command="BoostLibraryCheck-VC14.4.exe" WorkingDirectory="BoostLibraryCheck-VC14.4\x64\Debug" />
+        <Exec Command="BoostLibraryCheck-VC14.5.exe" WorkingDirectory="BoostLibraryCheck-VC14.5\x64\Debug" />
     </Target>
-    <Target Name="MSVC-144-R-64">
-        <MSBuild Projects="BoostLibraryCheck-VC14.4.vcxproj" Targets="Clean;Build"
+    <Target Name="MSVC-145-R-64">
+        <MSBuild Projects="BoostLibraryCheck-VC14.5.vcxproj" Targets="Clean;Build"
             Properties="Configuration=Release;Platform=x64;VisualStudioVersion=15.0" />
-        <Exec Command="BoostLibraryCheck-VC14.4.exe" WorkingDirectory="BoostLibraryCheck-VC14.4\x64\Release" />
+        <Exec Command="BoostLibraryCheck-VC14.5.exe" WorkingDirectory="BoostLibraryCheck-VC14.5\x64\Release" />
     </Target>
 
 </Project>
