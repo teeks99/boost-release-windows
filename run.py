@@ -22,9 +22,9 @@ from archive import Archive, run_remote_archive
 VERSION = "91"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-TYPE = "beta-rc"
+#TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
-#TYPE = "rc"
+TYPE = "rc"
 #TYPE = "release" # Never used, build RC
 REPO = "archives"
 BETA = 1
@@ -176,6 +176,10 @@ class Builder(object):
         parser.add_argument(
             "--vc-arch", action='append',
             help='architecture to build for e.g. 32 or 64')
+        
+        parser.add_argument(
+            "--inline-lib-check", action='store_true',
+            help="Run the library check after complete. Without this it will run at the same time")
 
         parser.add_argument(
             "--inno-compression-threads", default=inno_compression_threads, 
@@ -429,7 +433,10 @@ class Builder(object):
 
         os.chdir(self.build_path)
         self.midway_cleanup()
-        self.start_lib_check()
+        if self.inline_lib_check:
+            self.run_lib_check()
+        else:
+            self.start_lib_check()
         self.build_time.stop()
         self.build_time.output(self.times)
 
@@ -462,6 +469,11 @@ class Builder(object):
         print("Starting Library Check in another window")
         subprocess.call('start "Library Check" /d ' + self.lib_check_path +
                         ' start_check.bat' , shell=True)
+        
+    def run_lib_check(self):
+        print("Starting Library Check")
+        subprocess.check_call(
+            'start_check.bat', cwd=self.lib_check_path, shell=True)
 
     def package(self):
         self.package_time = Timer("Package")
