@@ -22,9 +22,9 @@ from archive import Archive, run_remote_archive
 VERSION = "92"
 MINOR_VERSION = "0"
 #TYPE = "master-snapshot"
-TYPE = "beta-rc"
+#TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
-#TYPE = "rc"
+TYPE = "rc"
 #TYPE = "release" # Never used, build RC
 REPO = "archives"
 BETA = 1
@@ -326,7 +326,7 @@ class Builder(object):
                 dep_ver.write(vs_versions.read())
 
     def bootstrap(self):
-        print("bootstrap.bat")
+        print("bootstrap.bat", flush=True)
         subprocess.call("bootstrap.bat", shell=True)
 
     def build_version(self, arch, vc):
@@ -346,12 +346,13 @@ class Builder(object):
         cmd += " address-model=" + arch 
         cmd += " architecture=x86"
         cmd += " stage"
-        print("Running: " + cmd)
+        print("Running: " + cmd, flush=True)
         subprocess.call(cmd, shell=True)
 
         t.stop()
         t.output(self.times)
 
+        print("Logging Errors: " + cmd, flush=True)
         with open(arch + "bitlog.txt", "a") as log:
             log.write(cmd + "\n")
 
