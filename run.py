@@ -19,12 +19,12 @@ except ImportError: # Python 2
 import repo_paths
 from archive import Archive, run_remote_archive
 
-VERSION = "92"
+VERSION = "93"
 MINOR_VERSION = "0"
-#TYPE = "master-snapshot"
+TYPE = "master-snapshot"
 #TYPE = "beta-rc"
 #TYPE = "beta" # Never used, build Beta RC
-TYPE = "rc"
+#TYPE = "rc"
 #TYPE = "release" # Never used, build RC
 REPO = "archives"
 BETA = 1
@@ -345,6 +345,7 @@ class Builder(object):
         cmd += " toolset=msvc-" + vc
         cmd += " address-model=" + arch 
         cmd += " architecture=x86"
+        cmd += " abi=ms"
         cmd += " stage"
         print("Running: " + cmd, flush=True)
         subprocess.call(cmd, shell=True)
