@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 from boostwin import config as config_module
-from boostwin import package, paths, smoke
+from boostwin import msvc, package, paths, smoke
 
 from . import fixture
 
@@ -141,6 +141,57 @@ class LibraryNameTests(unittest.TestCase):
         self.assertIn("python314", smoke.required_libraries(config, shared_runtime))
         self.assertNotIn("python314",
                          smoke.required_libraries(config, static_runtime))
+
+
+class VersionRangeTests(unittest.TestCase):
+    """The Visual Studio version ranges in build.toml must select correctly.
+
+    Matched here rather than by vswhere's own -version option, so it is worth
+    pinning down: getting it wrong means a runner with the right compiler
+    installed reports that it has none.
+    """
+
+    def test_visual_studio_2022_range(self):
+        for version in ("17.0", "17.14.37628.2", "17.99.9"):
+            self.assertTrue(msvc.version_in_range(version, "[17.0,18.0)"),
+                            version)
+        for version in ("16.11.53", "18.0", "18.9.12120.119"):
+            self.assertFalse(msvc.version_in_range(version, "[17.0,18.0)"),
+                             version)
+
+    def test_visual_studio_2026_range(self):
+        for version in ("18.0", "18.9.12120.119", "18.10.12201.205"):
+            self.assertTrue(msvc.version_in_range(version, "[18.0,19.0)"),
+                            version)
+        for version in ("17.14.37628.2", "19.0"):
+            self.assertFalse(msvc.version_in_range(version, "[18.0,19.0)"),
+                             version)
+
+    def test_bracket_kinds_and_open_ends(self):
+        self.assertFalse(msvc.version_in_range("17.0", "(17.0,18.0)"))
+        self.assertTrue(msvc.version_in_range("17.1", "(17.0,18.0)"))
+        self.assertTrue(msvc.version_in_range("18.0", "[17.0,18.0]"))
+        self.assertTrue(msvc.version_in_range("25.0", "[17.0,)"))
+        self.assertFalse(msvc.version_in_range("16.0", "[17.0,)"))
+
+    def test_a_bare_version_means_that_one_or_newer(self):
+        self.assertTrue(msvc.version_in_range("17.5", "17.0"))
+        self.assertFalse(msvc.version_in_range("16.5", "17.0"))
+
+    def test_a_missing_version_never_matches(self):
+        self.assertFalse(msvc.version_in_range("", "[17.0,18.0)"))
+
+    def test_every_configured_toolset_range_is_understood(self):
+        config = load()
+        known = {
+            "[17.0,18.0)": "17.14.37628.2",   # windows-2025 today
+            "[18.0,19.0)": "18.9.12120.119",  # windows-2025-vs2026 today
+        }
+        for toolset in config.toolsets:
+            self.assertIn(toolset.vs_version_range, known,
+                          "unrecognised range for msvc-" + toolset.name)
+            self.assertTrue(msvc.version_in_range(
+                known[toolset.vs_version_range], toolset.vs_version_range))
 
 
 class InventoryTests(unittest.TestCase):

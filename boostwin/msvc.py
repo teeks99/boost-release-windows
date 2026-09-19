@@ -14,7 +14,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from .util import WINDOWS, capture, fail, log, run
+from .util import WINDOWS, fail, log, run
 
 # vs_installer exit codes that mean "done", possibly wanting a reboot.
 INSTALLER_OK = {0, 3010, 1641}
@@ -50,31 +50,106 @@ def vswhere_path():
     return path
 
 
-def find_visual_studio(version_range, requires=()):
-    """Return the vswhere record for the newest matching Visual Studio."""
-    command = [str(vswhere_path()), "-products", "*", "-version", version_range,
-               "-latest", "-prerelease", "-format", "json", "-utf8"]
-    for component in requires:
-        command += ["-requires", component]
-    output = capture(command)
+def _version_key(text):
+    return tuple(int(part) for part in re.findall(r"\d+", text))
+
+
+# A NuGet style range, as Visual Studio spells it: [17.0,18.0), [15.0,), ...
+VERSION_RANGE = re.compile(
+    r"^\s*([\[(])\s*([0-9][0-9.]*)?\s*,\s*([0-9][0-9.]*)?\s*([\])])\s*$")
+
+
+def version_in_range(version, version_range):
+    """Is ``version`` inside a range like ``[17.0,18.0)``?
+
+    Done here rather than with vswhere's own ``-version`` option so that a
+    build that finds no compiler can report what it did find.
+    """
+    if not version:
+        return False
+    matched = VERSION_RANGE.match(version_range)
+    if not matched:
+        # A bare version means "this one or newer", the same as vswhere.
+        return _version_key(version) >= _version_key(version_range)
+    low_bracket, low, high, high_bracket = matched.groups()
+    key = _version_key(version)
+    if low:
+        low_key = _version_key(low)
+        if key < low_key or (key == low_key and low_bracket == "("):
+            return False
+    if high:
+        high_key = _version_key(high)
+        if key > high_key or (key == high_key and high_bracket == ")"):
+            return False
+    return True
+
+
+def _vswhere(arguments):
+    """Run vswhere, retrying without -utf8 for older copies that reject it."""
+    base = [str(vswhere_path())] + list(arguments)
+    attempts = [base + ["-utf8"], base]
+    for index, command in enumerate(attempts):
+        completed = subprocess.run(command, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        stdout = completed.stdout.decode("utf-8", errors="replace")
+        if completed.returncode == 0:
+            return stdout
+        if index + 1 < len(attempts):
+            continue
+        stderr = completed.stderr.decode("utf-8", errors="replace")
+        fail("vswhere exited with {}: {}\n{}\n{}".format(
+            completed.returncode, subprocess.list2cmdline(command),
+            stdout.strip(), stderr.strip()))
+
+
+def visual_studio_instances():
+    """Every Visual Studio vswhere reports, newest first.
+
+    ``-all`` is deliberate: an installation the installer considers to have
+    problems is still perfectly able to compile Boost, and is hidden from the
+    default query.
+    """
+    text = _vswhere(["-products", "*", "-all", "-prerelease",
+                     "-format", "json"]).strip()
+    if not text:
+        return []
     try:
-        instances = json.loads(output or "[]")
+        instances = json.loads(text)
     except json.JSONDecodeError:
-        fail("could not parse vswhere output:\n" + output)
-    if not instances:
-        return None
-    return instances[0]
+        fail("could not parse vswhere output:\n" + text)
+    instances.sort(
+        key=lambda instance: _version_key(
+            instance.get("installationVersion", "0")),
+        reverse=True)
+    return instances
+
+
+def describe_instance(instance):
+    return "{} {} at {}".format(
+        instance.get("displayName") or instance.get("productId", "?"),
+        instance.get("installationVersion", "?"),
+        instance.get("installationPath", "?"))
+
+
+def find_visual_studio(version_range):
+    """The newest Visual Studio whose version falls inside ``version_range``."""
+    for instance in visual_studio_instances():
+        if version_in_range(instance.get("installationVersion", ""),
+                            version_range):
+            return instance
+    return None
 
 
 def require_visual_studio(toolset):
     instance = find_visual_studio(toolset.vs_version_range)
     if not instance:
-        fail("no Visual Studio matching {} found for toolset msvc-{}"
-             .format(toolset.vs_version_range, toolset.name))
-    log("Visual Studio: {} {} at {}".format(
-        instance.get("displayName", "?"),
-        instance.get("installationVersion", "?"),
-        instance.get("installationPath", "?")))
+        found = visual_studio_instances()
+        listing = "\n".join("  " + describe_instance(i) for i in found)
+        fail("no Visual Studio matching {} found for toolset msvc-{}.\n"
+             "vswhere reported {} installation(s):\n{}".format(
+                 toolset.vs_version_range, toolset.name, len(found),
+                 listing or "  (none)"))
+    log("Visual Studio: " + describe_instance(instance))
     return instance
 
 
@@ -128,10 +203,6 @@ def install_components(toolset, instance, timeout=1800):
         time.sleep(15)
     fail("timed out waiting for the Visual Studio components: {}"
          .format(", ".join(missing)))
-
-
-def _version_key(text):
-    return tuple(int(part) for part in re.findall(r"\d+", text))
 
 
 def find_toolset_directory(install_path, vcvars_ver):

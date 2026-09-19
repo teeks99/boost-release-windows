@@ -97,24 +97,6 @@ def run(cmd, cwd=None, env=None, log_file=None, check=True, quiet=False):
     return code
 
 
-def capture(cmd, cwd=None, env=None, check=True):
-    """Run ``cmd`` and return its stdout as text."""
-    completed = subprocess.run(
-        cmd,
-        cwd=str(cwd) if cwd else None,
-        env=env,
-        shell=isinstance(cmd, str),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if check and completed.returncode != 0:
-        printable = cmd if isinstance(cmd, str) else subprocess.list2cmdline(cmd)
-        fail("command failed with exit code {}: {}\n{}".format(
-            completed.returncode, printable,
-            completed.stderr.decode("utf-8", errors="replace")))
-    return completed.stdout.decode("utf-8", errors="replace")
-
-
 def download(url, destination, force=False):
     """Fetch ``url`` to ``destination`` unless it is already there."""
     destination = Path(destination)

@@ -128,6 +128,17 @@ def cmd_prepare(workspace, args):
 
 
 def cmd_toolchain(workspace, args):
+    if args.list:
+        instances = msvc.visual_studio_instances()
+        print("{} Visual Studio installation(s):".format(len(instances)))
+        for instance in instances:
+            print("  " + msvc.describe_instance(instance))
+        for toolset in workspace.config.toolsets:
+            match = msvc.find_visual_studio(toolset.vs_version_range)
+            print("  msvc-{:<5} {:<14} -> {}".format(
+                toolset.name, toolset.vs_version_range,
+                msvc.describe_instance(match) if match else "no match"))
+        return 0
     build_config = one(workspace, args)
     toolchain = toolchain_for(workspace, build_config,
                               install_missing=not args.no_install)
@@ -371,6 +382,9 @@ def build_parser():
         "toolchain", help="locate the compiler and write user-config.jam")
     toolchain.add_argument("--no-install", action="store_true",
                            help="do not add missing Visual Studio components")
+    toolchain.add_argument("--list", action="store_true",
+                           help="list every Visual Studio found and which "
+                                "toolset each one satisfies, then stop")
     add_selection_arguments(toolchain, single=True)
     toolchain.set_defaults(handler=cmd_toolchain)
 

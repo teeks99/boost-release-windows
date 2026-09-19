@@ -178,6 +178,12 @@ jobs:
           name: downloads
           path: ${{ env.BOOSTWIN_BUILD_ROOT }}\downloads
 
+      # A couple of seconds, and it puts what is actually on the runner into
+      # the log, which is the first thing you want when a toolset is not found.
+      - name: Show the Visual Studio installations
+        continue-on-error: true
+        run: python -m boostwin toolchain --list
+
       - name: Prepare
         run: python -m boostwin prepare --no-fetch --id ${{ matrix.config.id }}
 
