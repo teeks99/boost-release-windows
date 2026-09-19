@@ -180,9 +180,30 @@ GitHub Actions
 *   **package** — downloads every stage artifact and assembles the release.
 
 Use **Run workflow** to build a specific release; the inputs map onto the
-`[release]` settings. `toolsets` and `archs` narrow the matrix when you only
-need to rebuild part of it. A pull request builds one toolset as a sanity
-check and does not package.
+`[release]` settings. `configs`, `toolsets`, `archs` and `variants` narrow the
+matrix when you only need to rebuild part of it -- `configs` takes exact
+configuration ids, which is what you want after one job fails.
+
+
+### Trying a change to the workflow
+
+`workflow_dispatch` only appears in the Actions tab once the workflow file is
+on the default branch, so a change to this workflow cannot be tested with
+**Run workflow** until it has been merged. Pushes and pull requests have no
+such restriction: both run the version of the workflow in the branch itself.
+
+So, while working on a branch:
+
+*   Add the branch to `on: push: branches:`. Every push then runs the
+    workflow, including the packaging job.
+*   A push to anything other than `master`, and every pull request, builds
+    only the `TRIAL_*` slice set in the workflow's `env:` block -- three
+    configurations by default, which finish in about the time one does.
+    Widen or narrow that slice as you work through what you want to prove.
+*   A pull request runs the same slice but skips packaging, which makes it
+    the cheap option when you only want to know that the build still works.
+
+Remove the branch from `branches:` when the work merges.
 
 Jobs do not fail the run when b2 reports errors — Boost does not always build
 cleanly everywhere, and the result matrix is part of the release. The smoke

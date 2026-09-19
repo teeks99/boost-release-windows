@@ -7,7 +7,10 @@ name: Build Boost Windows binaries
 
 on:
   push:
-    branches: [master]
+    # master builds the whole matrix.  Any other branch listed here builds
+    # only the TRIAL_* slice below, which is how this workflow gets exercised
+    # before it is merged.  Remove the extra branch once it has.
+    branches: [master, distributed-builds]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -31,12 +34,20 @@ on:
         description: "Release candidate number (only used by rc types)"
         required: false
         default: ""
+      configs:
+        description: "Exact configuration ids, comma separated (rebuild just these)"
+        required: false
+        default: ""
       toolsets:
         description: "Comma separated toolsets to build, e.g. 14.3,14.5"
         required: false
         default: ""
       archs:
         description: "Comma separated architectures to build, e.g. 64"
+        required: false
+        default: ""
+      variants:
+        description: "Comma separated variants to build: debug and/or release"
         required: false
         default: ""
       package:
@@ -60,6 +71,15 @@ env:
   BOOSTWIN_RELEASE_BETA: ${{ inputs.beta }}
   BOOSTWIN_RELEASE_RC: ${{ inputs.rc }}
 
+  # A pull request, or a push to any branch other than master, builds only
+  # this slice of the matrix -- enough to prove the machinery works without
+  # spending a full release on it.  Edit these while trying the workflow out;
+  # empty values here would mean the whole matrix.
+  TRIAL_CONFIGS: ""
+  TRIAL_TOOLSETS: "14.3"
+  TRIAL_ARCHS: "64"
+  TRIAL_VARIANTS: "release"
+
 jobs:
   matrix:
     name: Work out the matrix
@@ -79,24 +99,37 @@ jobs:
       - name: Generate the build matrix
         id: generate
         env:
+          CONFIGS: ${{ inputs.configs }}
           TOOLSETS: ${{ inputs.toolsets }}
           ARCHS: ${{ inputs.archs }}
-          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+          VARIANTS: ${{ inputs.variants }}
+          IS_TRIAL: ${{ github.ref != 'refs/heads/master' }}
         run: |
-          filters=()
-          IFS=',' read -ra wanted <<< "$TOOLSETS"
-          for item in "${wanted[@]}"; do
-            [ -n "$item" ] && filters+=(--toolset "$item")
-          done
-          IFS=',' read -ra wanted <<< "$ARCHS"
-          for item in "${wanted[@]}"; do
-            [ -n "$item" ] && filters+=(--arch "$item")
-          done
-          # A pull request only needs to prove the machinery still works, not
-          # produce a release, so build one toolset unless asked otherwise.
-          if [ "$IS_PULL_REQUEST" = "true" ] && [ ${#filters[@]} -eq 0 ]; then
-            filters=(--toolset 14.3 --arch 64 --variant release)
+          # A dispatch that asked for something specific always wins; a trial
+          # run that asked for nothing gets the TRIAL_* slice.
+          if [ "$IS_TRIAL" = "true" ] && \
+             [ -z "$CONFIGS$TOOLSETS$ARCHS$VARIANTS" ]; then
+            CONFIGS="$TRIAL_CONFIGS"
+            TOOLSETS="$TRIAL_TOOLSETS"
+            ARCHS="$TRIAL_ARCHS"
+            VARIANTS="$TRIAL_VARIANTS"
           fi
+
+          filters=()
+          add_filter() {
+            local flag="$1"
+            local values="$2"
+            local item
+            local IFS=','
+            for item in $values; do
+              [ -n "$item" ] && filters+=("$flag" "$item")
+            done
+          }
+          add_filter --id "$CONFIGS"
+          add_filter --toolset "$TOOLSETS"
+          add_filter --arch "$ARCHS"
+          add_filter --variant "$VARIANTS"
+
           python3 -m boostwin info
           python3 -m boostwin matrix --github "${filters[@]}"
 
