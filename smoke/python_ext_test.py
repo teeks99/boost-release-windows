@@ -1,9 +1,22 @@
-"""Import the Boost.Python smoke extension and exercise it."""
+"""Import the Boost.Python smoke extension and exercise it.
+
+    python_ext_test.py <directory holding the .pyd> [<directory holding DLLs> ...]
+
+Python 3.8 and later do not use PATH to resolve an extension module's DLL
+dependencies, so the directory holding boost_python's DLL has to be added
+explicitly -- which is also what a real user of these binaries has to do.
+"""
+import os
 import sys
 
-sys.path.insert(0, sys.argv[1])
+module_dir = sys.argv[1]
+sys.path.insert(0, module_dir)
 
-import boost_smoke_ext  # noqa: E402  (path has to be set up first)
+for dll_dir in sys.argv[2:]:
+    if hasattr(os, "add_dll_directory") and os.path.isdir(dll_dir):
+        os.add_dll_directory(dll_dir)
+
+import boost_smoke_ext  # noqa: E402  (the search paths have to be set up first)
 
 greeting = boost_smoke_ext.greet()
 assert greeting == "boost.python works", greeting

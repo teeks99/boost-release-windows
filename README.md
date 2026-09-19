@@ -178,15 +178,27 @@ Run per configuration, against the libraries that configuration just staged:
     missing. The required list is `[smoke].required_libs` in `build.toml`.
 2.  **compile** — [smoke/smoke.cpp](smoke/smoke.cpp) uses about fifteen Boost
     libraries and names none of them: everything is pulled in by Boost's
-    auto-linking. It is compiled with `BOOST_LIB_DIAGNOSTIC`, and every name
-    the compiler asks for must be a file that was actually staged. That is the
-    check that library naming and the build variant agree.
+    auto-linking. It is compiled with `BOOST_LIB_DIAGNOSTIC`, and every Boost
+    name the compiler asks for must be a file that was actually staged. That
+    is the check that library naming and the build variant agree. Libraries
+    from the Windows SDK are reported but not required -- Boost.Atomic
+    auto-links `synchronization.lib` for `WaitOnAddress`.
+
+    `[smoke].extra_link_libs` names the few libraries Boost fails to
+    auto-link. Boost.JSON's compiled code calls `boost::charconv::to_chars`
+    but only includes charconv's *detail* config, which carries no autolink
+    block; a shared build hides that inside the DLL, a static one does not
+    link at all. They are resolved from the staged directory by stem, so the
+    file name still comes from what the build actually produced.
 3.  **run** — the program runs and its checks pass, which exercises threads,
     filesystem, serialization and a zlib and bzip2 round trip through
     Boost.Iostreams (so the bundled zlib and bzip2 really did get built in).
 4.  **python** — a Boost.Python extension module is built and imported with the
     matching interpreter. Only for release / shared / shared, since the
-    dependency Python packages carry no debug binaries.
+    dependency Python packages carry no debug binaries. The staged directory
+    is handed to `os.add_dll_directory`, because Python 3.8 and later do not
+    use `PATH` to resolve an extension module's DLLs -- which is what a user
+    of these binaries has to do too.
 
 `package` also cross-checks the configurations against each other: all six
 variants of a compiler and architecture should contain the same libraries.

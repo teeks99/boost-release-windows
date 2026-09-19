@@ -12,12 +12,40 @@ import json
 import os
 import re
 import subprocess
+from pathlib import Path
 
 from .util import Timer, log
 
 # libboost_filesystem-vc143-mt-sgd-x64-1_92.lib
 #   ^prefix ^stem      ^toolset ^tags   ^arch ^version
 AUTOLINK_LINE = re.compile(r"Linking to lib file:\s*(\S+\.lib)")
+
+
+def classify_autolink(lib_dir, names):
+    """Split the libraries auto-linking asked for into Boost and system ones.
+
+    Not every auto-linked library is ours: Boost.Atomic pulls in the Windows
+    SDK's synchronization.lib for WaitOnAddress, for instance.  Only the Boost
+    ones have to be in the staged directory.
+    """
+    boost = []
+    system = []
+    problems = []
+    for name in names:
+        # BOOST_LIB_DIAGNOSTIC stringizes an already quoted system library
+        # name, so it can arrive as "synchronization".lib.
+        name = name.replace('"', "")
+        if re.match(r"^(lib)?boost_", name):
+            boost.append(name)
+            if not (Path(lib_dir) / name).exists():
+                problems.append(
+                    "{} was requested but is not in {}".format(name, lib_dir))
+        else:
+            system.append(name)
+    if not boost:
+        problems.append("no Boost libraries were auto-linked; "
+                        "BOOST_LIB_DIAGNOSTIC produced nothing")
+    return sorted(set(boost)), sorted(set(system)), problems
 
 
 def parse_library_name(filename):
@@ -141,6 +169,28 @@ def check_inventory(workspace, build_config):
     }
 
 
+def extra_link_libraries(lib_dir, stems):
+    """Locate the staged file for each library that must be named explicitly.
+
+    A few Boost libraries call into another without auto-linking it -- most
+    notably Boost.JSON, whose compiled code calls boost::charconv::to_chars
+    while only including charconv's detail config, which carries no autolink
+    block.  A shared build hides this inside the DLL; a static one does not.
+    """
+    lib_dir = Path(lib_dir)
+    resolved = []
+    problems = []
+    for stem in stems:
+        matches = sorted(lib_dir.glob("*boost_{}-*.lib".format(stem)))
+        if matches:
+            resolved.append(matches[0])
+        else:
+            problems.append(
+                "boost_{} has to be linked explicitly but was not staged in "
+                "{}".format(stem, lib_dir))
+    return resolved, problems
+
+
 def _runtime_flag(build_config):
     static_runtime = build_config.runtime_link == "static"
     debug = build_config.variant == "debug"
@@ -155,6 +205,9 @@ def _compile_flags(workspace, build_config):
         "/nologo", "/EHsc", "/W3", "/bigobj",
         "/std:" + config.smoke.std, "/Zc:__cplusplus",
         "/D_CRT_SECURE_NO_WARNINGS",
+        # boost/iostreams/filter/bzip2.hpp derives a dll-interface class from
+        # std::ios_base::failure, which is benign and warns every time.
+        "/wd4275",
         # Makes the compiler print every library auto-linking asks for, which
         # is what turns this into a naming check as well as a link check.
         "/DBOOST_LIB_DIAGNOSTIC",
@@ -185,6 +238,17 @@ def check_compile_and_run(workspace, build_config, toolchain):
     work.mkdir(parents=True, exist_ok=True)
     executable = work / "boost_smoke.exe"
 
+    lib_dir = workspace.stage_lib(build_config)
+    extra, extra_problems = extra_link_libraries(
+        lib_dir, config.smoke.extra_link_libs)
+    if extra_problems:
+        for problem in extra_problems:
+            log("  link: " + problem)
+        return {"name": "compile", "ok": False,
+                "detail": "a library that has to be linked explicitly is "
+                          "missing",
+                "problems": extra_problems}, None
+
     command = [str(toolchain.cl)] + _compile_flags(workspace, build_config) + [
         "/I" + str(workspace.source),
         "/Fo" + str(work) + os.sep,
@@ -192,8 +256,8 @@ def check_compile_and_run(workspace, build_config, toolchain):
         "/Fe" + str(executable),
         str(sources / "smoke.cpp"),
         "/link",
-        "/LIBPATH:" + str(workspace.stage_lib(build_config)),
-    ]
+        "/LIBPATH:" + str(lib_dir),
+    ] + [str(path) for path in extra]
     completed = subprocess.run(
         command, cwd=str(work), env=toolchain.env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -201,16 +265,19 @@ def check_compile_and_run(workspace, build_config, toolchain):
     print(output, flush=True)
     (work / "compile.log").write_text(output, encoding="utf-8")
 
-    autolinked = sorted(set(AUTOLINK_LINE.findall(output)))
+    requested = sorted(set(AUTOLINK_LINE.findall(output)))
     if completed.returncode != 0:
         return {
             "name": "compile",
             "ok": False,
             "detail": "cl exited with {}".format(completed.returncode),
-            "autolink": autolinked,
+            "autolink": requested,
         }, None
 
-    problems = _check_autolink(workspace, build_config, autolinked)
+    boost, system, problems = classify_autolink(lib_dir, requested)
+    detail = "{} Boost libraries auto-linked".format(len(boost))
+    if system:
+        detail += ", plus {} from the SDK".format(len(system))
     if problems:
         for problem in problems:
             log("  autolink: " + problem)
@@ -219,30 +286,18 @@ def check_compile_and_run(workspace, build_config, toolchain):
             "ok": False,
             "detail": "auto-linked names do not match the staged files",
             "problems": problems,
-            "autolink": autolinked,
+            "autolink": boost,
+            "system_libraries": system,
         }, executable
 
-    log("auto-linked {} libraries".format(len(autolinked)))
+    log(detail)
     return {
         "name": "compile",
         "ok": True,
-        "detail": "{} auto-linked libraries".format(len(autolinked)),
-        "autolink": autolinked,
+        "detail": detail,
+        "autolink": boost,
+        "system_libraries": system,
     }, executable
-
-
-def _check_autolink(workspace, build_config, autolinked):
-    """Every name auto-linking asked for must be a file we actually staged."""
-    lib_dir = workspace.stage_lib(build_config)
-    problems = []
-    for name in autolinked:
-        if not (lib_dir / name).exists():
-            problems.append(
-                "{} was requested but is not in {}".format(name, lib_dir))
-    if not autolinked:
-        problems.append("no libraries were auto-linked; "
-                        "BOOST_LIB_DIAGNOSTIC produced nothing")
-    return problems
 
 
 def check_run(workspace, build_config, toolchain, executable):
@@ -312,7 +367,8 @@ def check_python_extension(workspace, build_config, toolchain):
     env = _run_environment(workspace, build_config, toolchain,
                            extra_path=[python_root])
     completed = subprocess.run(
-        [str(interpreter), str(sources / "python_ext_test.py"), str(work)],
+        [str(interpreter), str(sources / "python_ext_test.py"), str(work),
+         str(workspace.stage_lib(build_config))],
         cwd=str(work), env=env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = completed.stdout.decode("utf-8", errors="replace")

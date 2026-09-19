@@ -377,6 +377,124 @@ class InventoryTests(unittest.TestCase):
         self.assertFalse(result["ok"])
 
 
+class AutolinkTests(unittest.TestCase):
+    """What Boost's auto-linking asks the linker for, against what was staged.
+
+    Not every request is ours: Boost.Atomic pulls in the Windows SDK's
+    synchronization.lib, and BOOST_LIB_DIAGNOSTIC reports it with its quotes
+    still attached.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.lib_dir = Path(self.tmp.name)
+        for name in ("boost_filesystem-vc143-mt-x64-1_93.lib",
+                     "boost_thread-vc143-mt-x64-1_93.lib",
+                     "libboost_exception-vc143-mt-x64-1_93.lib"):
+            (self.lib_dir / name).write_text("x")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_staged_boost_libraries_pass(self):
+        boost, system, problems = smoke.classify_autolink(
+            self.lib_dir, ["boost_filesystem-vc143-mt-x64-1_93.lib",
+                           "boost_thread-vc143-mt-x64-1_93.lib",
+                           "libboost_exception-vc143-mt-x64-1_93.lib"])
+        self.assertEqual(problems, [])
+        self.assertEqual(len(boost), 3)
+        self.assertEqual(system, [])
+
+    def test_a_windows_sdk_library_is_not_required_to_be_staged(self):
+        boost, system, problems = smoke.classify_autolink(
+            self.lib_dir, ['"synchronization".lib',
+                           "boost_thread-vc143-mt-x64-1_93.lib"])
+        self.assertEqual(problems, [])
+        self.assertEqual(system, ["synchronization.lib"])
+        self.assertEqual(boost, ["boost_thread-vc143-mt-x64-1_93.lib"])
+
+    def test_a_boost_library_that_was_not_staged_fails(self):
+        _boost, _system, problems = smoke.classify_autolink(
+            self.lib_dir, ["boost_thread-vc143-mt-x64-1_93.lib",
+                           "boost_regex-vc143-mt-x64-1_93.lib"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("boost_regex", problems[0])
+
+    def test_a_boost_library_from_the_wrong_variant_fails(self):
+        # A debug name against a release staging directory: the file is not
+        # there, which is the whole point of checking.
+        _boost, _system, problems = smoke.classify_autolink(
+            self.lib_dir, ["boost_thread-vc143-mt-gd-x64-1_93.lib"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("-mt-gd-", problems[0])
+
+    def test_linking_nothing_from_boost_fails(self):
+        _boost, _system, problems = smoke.classify_autolink(
+            self.lib_dir, ['"synchronization".lib'])
+        self.assertTrue(any("no Boost libraries" in p for p in problems))
+
+        _boost, _system, problems = smoke.classify_autolink(self.lib_dir, [])
+        self.assertTrue(any("no Boost libraries" in p for p in problems))
+
+    def test_the_diagnostic_line_is_recognised(self):
+        # Exactly the shape cl.exe emits, including the quoted system library.
+        output = (
+            "smoke.cpp\n"
+            "Linking to lib file: boost_atomic-vc143-mt-x64-1_93.lib\n"
+            'Linking to lib file: "synchronization".lib\n'
+            "Linking to lib file: boost_thread-vc143-mt-x64-1_93.lib\n")
+        found = smoke.AUTOLINK_LINE.findall(output)
+        self.assertEqual(found, ["boost_atomic-vc143-mt-x64-1_93.lib",
+                                 '"synchronization".lib',
+                                 "boost_thread-vc143-mt-x64-1_93.lib"])
+
+
+class ExtraLinkTests(unittest.TestCase):
+    """Libraries the smoke program must name because Boost does not."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.lib_dir = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_a_static_library_is_found_by_stem(self):
+        name = "libboost_charconv-vc143-mt-x64-1_93.lib"
+        (self.lib_dir / name).write_text("x")
+        resolved, problems = smoke.extra_link_libraries(
+            self.lib_dir, ["charconv"])
+        self.assertEqual(problems, [])
+        self.assertEqual([p.name for p in resolved], [name])
+
+    def test_an_import_library_is_found_by_stem(self):
+        name = "boost_charconv-vc143-mt-gd-x64-1_93.lib"
+        (self.lib_dir / name).write_text("x")
+        (self.lib_dir / "boost_charconv-vc143-mt-gd-x64-1_93.dll").write_text("x")
+        resolved, problems = smoke.extra_link_libraries(
+            self.lib_dir, ["charconv"])
+        self.assertEqual(problems, [])
+        self.assertEqual([p.name for p in resolved], [name])
+
+    def test_a_missing_library_is_reported(self):
+        resolved, problems = smoke.extra_link_libraries(
+            self.lib_dir, ["charconv"])
+        self.assertEqual(resolved, [])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("boost_charconv", problems[0])
+
+    def test_nothing_configured_asks_for_nothing(self):
+        self.assertEqual(smoke.extra_link_libraries(self.lib_dir, []),
+                         ([], []))
+
+    def test_every_extra_library_is_also_a_required_one(self):
+        # Otherwise a build could stage nothing for it and the inventory
+        # check would stay quiet while the link failed.
+        config = load()
+        for stem in config.smoke.extra_link_libs:
+            self.assertIn(stem, config.smoke.required_libs)
+
+
 class PackageTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

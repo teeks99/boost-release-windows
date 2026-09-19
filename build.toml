@@ -170,6 +170,12 @@ required_libs = [
     "wserialization", "zlib",
 ]
 
+# Libraries the smoke program has to name on the link line because Boost does
+# not auto-link them.  Boost.JSON's compiled code calls boost::charconv, but
+# it only includes charconv's detail config, which carries no autolink block;
+# a shared build hides that inside the DLL, a static one fails to link.
+extra_link_libs = ["charconv"]
+
 # Libraries that are only expected in some configurations.  `{python_tag}`
 # expands to e.g. 314.
 [[smoke.conditional_libs]]

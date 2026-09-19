@@ -266,6 +266,7 @@ class SmokeOptions:
     enabled: bool = True
     required_libs: tuple = ()
     conditional_libs: tuple = ()
+    extra_link_libs: tuple = ()
     python_extension: bool = True
     std: str = "c++14"
 
@@ -425,6 +426,7 @@ def load(path=None, overrides=None):
         enabled=bool(smoke_table.get("enabled", True)),
         required_libs=tuple(smoke_table.get("required_libs", ())),
         conditional_libs=conditional_libs,
+        extra_link_libs=tuple(smoke_table.get("extra_link_libs", ())),
         python_extension=bool(smoke_table.get("python_extension", True)),
         std=smoke_table.get("std", "c++14"),
     )
