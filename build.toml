@@ -1,0 +1,159 @@
+# Configuration for the Boost Windows release builds.
+#
+#   python -m boostwin matrix --list      # what will be built
+#   python -m boostwin all                # build everything on this machine
+#
+# Everything below is also what the GitHub Actions workflow reads, so a change
+# here changes both the local build and CI.
+
+# --------------------------------------------------------------- release ---
+# Which Boost source archive the whole release is built from.
+[release]
+version = "93"
+minor_version = "0"
+# master-snapshot | beta-rc | beta | rc | release
+type = "master-snapshot"
+# archives | jfrog | git | local
+repo = "archives"
+beta = 1
+rc = 1
+source_extension = "tar.bz2"
+
+# ------------------------------------------------------------------ deps ---
+# Pre-built dependencies, hosted because they are not available upstream in a
+# usable form.  These are the same versions the hand-run builds have used.
+[deps]
+url = "https://boost.teeks99.com/deps/"
+python = "3.14.0"
+zlib = "1.3.1"
+bzip2 = "1.0.8"
+sevenzip = "2201"
+
+# ----------------------------------------------------------------- build ---
+[build]
+# 0 means "one b2 job per CPU".
+b2_jobs = 0
+without = ["mpi"]
+layout = "versioned"
+build_type = "complete"
+extra_b2_args = []
+# Empty means: D:\boostwin on Windows if D: exists, else C:\boostwin, else
+# ./_build.  Override with --build-root or $BOOSTWIN_BUILD_ROOT.
+build_root = ""
+# Keep bin.v2 after a configuration finishes.  Expensive; off by default.
+keep_intermediate = false
+
+# ------------------------------------------------------------ toolchains ---
+# One table per MSVC toolset.  `vcvars_ver` selects a side-by-side toolset
+# inside the installed Visual Studio; empty means "that VS's default".
+# `install_components` are added with the VS installer if they are missing,
+# which is how v141 gets onto a runner image that does not ship it.
+
+[[toolset]]
+name = "14.1"
+vs_display = "Microsoft Visual Studio 2017 toolset (v141)"
+runner = "windows-2025"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = "14.16"
+archs = ["32", "64"]
+install_components = ["Microsoft.VisualStudio.Component.VC.v141.x86.x64"]
+
+[[toolset]]
+name = "14.2"
+vs_display = "Microsoft Visual Studio 2019 toolset (v142)"
+runner = "windows-2025"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = "14.29"
+archs = ["32", "64"]
+install_components = ["Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64"]
+
+[[toolset]]
+name = "14.3"
+vs_display = "Microsoft Visual Studio 2022 (v143)"
+runner = "windows-2025"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = ""
+archs = ["32", "64"]
+install_components = []
+
+[[toolset]]
+name = "14.5"
+vs_display = "Microsoft Visual Studio 2026 (v145)"
+runner = "windows-2025-vs2026"
+vs_version_range = "[18.0,19.0)"
+vcvars_ver = ""
+archs = ["32", "64"]
+install_components = []
+
+# --------------------------------------------------------- architectures ---
+# `vcvars_target` is the target half of the vcvarsall.bat argument; the host
+# half is worked out at run time, so the same entry works for a native or a
+# cross build.
+
+[arch.32]
+address_model = "32"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x86"
+python_arch = "32"
+
+[arch.64]
+address_model = "64"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x64"
+python_arch = "64"
+
+# Not referenced by any toolset yet; listed so adding "arm64" to a toolset's
+# `archs` is the only change needed to start building it.
+[arch.arm64]
+address_model = "64"
+architecture = "arm"
+abi = "ms"
+vcvars_target = "arm64"
+python_arch = "arm64"
+
+# -------------------------------------------------------------- variants ---
+# Together these reproduce exactly what `b2 --build-type=complete` builds on
+# Windows, one configuration at a time.  link=shared with runtime-link=static
+# is rejected by Boost itself, so it is not listed.
+[variants]
+variant = ["debug", "release"]
+threading = ["multi"]
+link_combos = [
+    { link = "shared", runtime_link = "shared" },
+    { link = "static", runtime_link = "shared" },
+    { link = "static", runtime_link = "static" },
+]
+
+# ----------------------------------------------------------------- smoke ---
+[smoke]
+enabled = true
+std = "c++14"
+# Build a Boost.Python extension module and import it.  Only attempted where
+# that makes sense (release, shared library, shared runtime).
+python_extension = true
+# A library missing from this list fails the configuration.  Anything else
+# that was staged is reported but not required, so a new Boost library does
+# not break the build on the day it lands; `package` separately checks that
+# all the configurations agree with each other, which catches a library that
+# quietly stops building for one variant or one compiler.
+#
+# boost_system is deliberately absent: it has been header-only since 1.69 and
+# no longer stages a library at all.
+required_libs = [
+    "atomic", "bzip2", "charconv", "chrono", "container", "context",
+    "contract", "coroutine", "date_time", "exception", "fiber", "filesystem",
+    "graph", "iostreams", "json", "locale", "log", "log_setup", "math_c99",
+    "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l", "nowide",
+    "prg_exec_monitor", "program_options", "random", "regex", "serialization",
+    "stacktrace_dump", "stacktrace_noop", "test_exec_monitor", "thread",
+    "timer", "type_erasure", "unit_test_framework", "url", "wave",
+    "wserialization", "zlib",
+]
+
+# Libraries that are only expected in some configurations.  `{python_tag}`
+# expands to e.g. 314.
+[[smoke.conditional_libs]]
+libs = ["python{python_tag}"]
+runtime_link = ["shared"]

@@ -1,74 +1,209 @@
-name: Build and Test
-run-name: Build and test
-on: [push]
+name: Build Boost Windows binaries
+
+# One job per build configuration (toolset x architecture x variant x link),
+# so no single job comes close to the six hour runner limit.  The matrix is
+# generated from build.toml by `boostwin matrix`, which is the same code the
+# local build uses, so CI and a hand-run build cannot drift apart.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Boost minor version, e.g. 93 (blank: use build.toml)"
+        required: false
+        default: ""
+      minor_version:
+        description: "Boost patch version, e.g. 0 (blank: use build.toml)"
+        required: false
+        default: ""
+      type:
+        description: "master-snapshot, beta-rc, beta, rc or release"
+        required: false
+        default: ""
+      beta:
+        description: "Beta number (only used by beta types)"
+        required: false
+        default: ""
+      rc:
+        description: "Release candidate number (only used by rc types)"
+        required: false
+        default: ""
+      toolsets:
+        description: "Comma separated toolsets to build, e.g. 14.3,14.5"
+        required: false
+        default: ""
+      archs:
+        description: "Comma separated architectures to build, e.g. 64"
+        required: false
+        default: ""
+      package:
+        description: "Assemble the release archives when the builds finish"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
-      id-token: write
-      contents: read
+  contents: read
+
+env:
+  # Empty values are ignored, so these can be forwarded unconditionally.
+  BOOSTWIN_RELEASE_VERSION: ${{ inputs.version }}
+  BOOSTWIN_RELEASE_MINOR_VERSION: ${{ inputs.minor_version }}
+  BOOSTWIN_RELEASE_TYPE: ${{ inputs.type }}
+  BOOSTWIN_RELEASE_BETA: ${{ inputs.beta }}
+  BOOSTWIN_RELEASE_RC: ${{ inputs.rc }}
 
 jobs:
-  StartupVM:
+  matrix:
+    name: Work out the matrix
     runs-on: ubuntu-latest
-    environment: vm-builder
+    outputs:
+      configs: ${{ steps.generate.outputs.configs }}
+      count: ${{ steps.generate.outputs.count }}
+      release_name: ${{ steps.generate.outputs.release_name }}
     steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Check out repository code
-        uses: actions/checkout@v5
-      - name: Start VM
-        uses: azure/cli@v2
-        with: 
-          azcliversion: 2.30.0
-          inlineScript: |
-            $GITHUB_WORKSPACE/burns41_build.bash
+      - uses: actions/checkout@v5
 
-  BuildInstallers:
-    runs-on: win-build-amd64
-    needs: [StartupVM]
+      # Cheap, and it catches a broken build.toml before 48 Windows runners
+      # start up.
+      - name: Run the tests
+        run: python3 -m unittest discover -s tests -t . --quiet
+
+      - name: Generate the build matrix
+        id: generate
+        env:
+          TOOLSETS: ${{ inputs.toolsets }}
+          ARCHS: ${{ inputs.archs }}
+          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          filters=()
+          IFS=',' read -ra wanted <<< "$TOOLSETS"
+          for item in "${wanted[@]}"; do
+            [ -n "$item" ] && filters+=(--toolset "$item")
+          done
+          IFS=',' read -ra wanted <<< "$ARCHS"
+          for item in "${wanted[@]}"; do
+            [ -n "$item" ] && filters+=(--arch "$item")
+          done
+          # A pull request only needs to prove the machinery still works, not
+          # produce a release, so build one toolset unless asked otherwise.
+          if [ "$IS_PULL_REQUEST" = "true" ] && [ ${#filters[@]} -eq 0 ]; then
+            filters=(--toolset 14.3 --arch 64 --variant release)
+          fi
+          python3 -m boostwin info
+          python3 -m boostwin matrix --github "${filters[@]}"
+
+  downloads:
+    name: Fetch source and dependencies
+    runs-on: ubuntu-latest
     steps:
-      - run: echo "Job has run"
-      - name: Check out repository code
-        uses: actions/checkout@v5
-      - name: Remove user-config.jam
-        run: Remove-Item -Path (Join-Path -Path $env:USERPROFILE -ChildPath "user-config.jam") -ErrorAction SilentlyContinue
-      - name: Remove build directory
-        run: Remove-Item -Path "D:\RB" -Recurse -Force -ErrorAction SilentlyContinue
-      - run: python run.py --inline-lib-check
-      - name: Versions Artifact
-        uses: actions/upload-artifact@v4
-        with: 
-          name: build-versions
-          path: D:/RB/DEPENDENCY_VERSIONS.txt
-      - name: Build Logs Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-Logs
-          path: D:/RB/boost*log.txt
-      - name: Full Build
-        uses: actions/upload-artifact@v4
-        with: 
-          name: full-build
-          path: D:/RB/boost*msvc-all*.7z
-      - name: Installers Build
-        uses: actions/upload-artifact@v4
-        with: 
-          name: installers-build
-          path: D:/RB/boost*.exe
+      - uses: actions/checkout@v5
 
-  # DeleteVM:
-  #   runs-on: ubuntu-latest
-  #   environment: vm-builder
-  #   needs: [BuildInstallers]
-  #   if: always()
-  #   steps:
-  #     - name: Azure Login
-  #       uses: azure/login@v2
-  #       with:
-  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
-  #     - name: Delete VM
-  #       uses: azure/cli@v2
-  #       with: 
-  #         azcliversion: 2.30.0
-  #         inlineScript: |
-  #           az vm delete --resource-group vse --name burns31 --yes
+      - name: Download the Boost source and the build dependencies
+        run: python3 -m boostwin --build-root "$RUNNER_TEMP/boostwin" fetch
+
+      # Shared with every build job, so the Boost and dependency servers see
+      # one download per run rather than one per configuration.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: downloads
+          path: ${{ runner.temp }}/boostwin/downloads
+          retention-days: 3
+          compression-level: 0
+
+  build:
+    name: ${{ matrix.config.id }}
+    needs: [matrix, downloads]
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJSON(needs.matrix.outputs.configs) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Choose a build root
+        shell: pwsh
+        run: |
+          $root = if (Test-Path 'D:\') { 'D:\boostwin' } else { 'C:\boostwin' }
+          "BOOSTWIN_BUILD_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "build root: $root"
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+            Format-Table -AutoSize
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: downloads
+          path: ${{ env.BOOSTWIN_BUILD_ROOT }}\downloads
+
+      - name: Prepare
+        run: python -m boostwin prepare --no-fetch --id ${{ matrix.config.id }}
+
+      - name: Build
+        run: python -m boostwin build --id ${{ matrix.config.id }}
+
+      - name: Smoke test
+        run: python -m boostwin test --id ${{ matrix.config.id }}
+
+      - name: Report free space
+        if: always()
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} |
+            Format-Table -AutoSize
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-${{ matrix.config.id }}
+          path: ${{ env.BOOSTWIN_BUILD_ROOT }}\stage\${{ matrix.config.id }}
+          retention-days: 7
+          if-no-files-found: warn
+
+  package:
+    name: Assemble the release
+    needs: [matrix, downloads, build]
+    if: ${{ !cancelled() && needs.matrix.result == 'success'
+        && github.event_name != 'pull_request'
+        && (github.event_name != 'workflow_dispatch' || inputs.package) }}
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Choose a build root
+        shell: pwsh
+        run: |
+          $root = if (Test-Path 'D:\') { 'D:\boostwin' } else { 'C:\boostwin' }
+          "BOOSTWIN_BUILD_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: downloads
+          path: ${{ env.BOOSTWIN_BUILD_ROOT }}\downloads
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: stage-*
+          path: ${{ env.BOOSTWIN_BUILD_ROOT }}\stage
+
+      - name: Package
+        run: >
+          python -m boostwin package --no-fetch --discard-stages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.matrix.outputs.release_name }}-binaries
+          path: ${{ env.BOOSTWIN_BUILD_ROOT }}\out
+          retention-days: 30
+          compression-level: 0

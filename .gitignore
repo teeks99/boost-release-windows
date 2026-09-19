@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# Default local build root when one is not configured.
+/_build/

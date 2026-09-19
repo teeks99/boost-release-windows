@@ -5,7 +5,7 @@ try:
 except ImportError: # Python 2
     from urllib import urlretrieve
 
-import repo_paths
+from boostwin import repos
 
 supported_extensions = ["7z", "tar.bz2", "tar.gz", "zip"]
 repo = "archives"
@@ -50,7 +50,7 @@ if not os.path.exists(bin_path):
     print(f"Making Dir: {bin_path}")
     os.makedirs(bin_path)
 
-config = repo_paths.REPOS[repo][release_type]
+config = repos.REPOS[repo][release_type]
 replace = {"version": args.version, "minor_version": args.minor_version}
 if args.beta:
     replace["beta"] = args.beta
