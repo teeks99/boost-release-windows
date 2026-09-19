@@ -164,9 +164,10 @@ def install_components(toolset, instance, timeout=1800):
     if not toolset.install_components:
         return instance
     install_path = instance["installationPath"]
-    if find_toolset_directory(install_path, toolset.vcvars_ver) is not None:
-        log("MSVC toolset {} is already installed".format(
-            toolset.vcvars_ver or "(default)"))
+    if toolset_is_acceptable(select_toolset_directory(install_path, toolset),
+                             toolset):
+        log("MSVC toolset for msvc-{} is already installed".format(
+            toolset.name))
         return instance
     missing = toolset.install_components
 
@@ -194,8 +195,9 @@ def install_components(toolset, instance, timeout=1800):
     deadline = time.time() + timeout
     while True:
         instance = require_visual_studio(toolset)
-        if find_toolset_directory(instance["installationPath"],
-                                  toolset.vcvars_ver) is not None:
+        if toolset_is_acceptable(
+                select_toolset_directory(instance["installationPath"], toolset),
+                toolset):
             log("components installed")
             return instance
         if time.time() >= deadline:
@@ -205,39 +207,78 @@ def install_components(toolset, instance, timeout=1800):
          .format(", ".join(missing)))
 
 
-def find_toolset_directory(install_path, vcvars_ver):
-    """``VC/Tools/MSVC/<version>`` for this configuration, or None."""
+def matches_msvc_version(directory_name, prefix):
+    """Does an MSVC toolset directory belong to the family ``prefix``?
+
+    ``14.16`` matches ``14.16.27023``, and ``14.2`` matches every ``14.2x``,
+    which is how vcvarsall.bat treats a shortened -vcvars_ver.
+    """
+    if not directory_name.startswith(prefix):
+        return False
+    rest = directory_name[len(prefix):]
+    return rest == "" or rest[0] == "." or rest[0].isdigit()
+
+
+def installed_toolsets(install_path):
+    """Every ``VC/Tools/MSVC/<version>`` directory, oldest first."""
     tools = Path(install_path) / "VC" / "Tools" / "MSVC"
     if not tools.is_dir():
-        return None
-    if vcvars_ver:
-        matches = sorted(
-            (entry for entry in tools.iterdir()
-             if entry.is_dir() and entry.name.startswith(vcvars_ver + ".")),
-            key=lambda entry: _version_key(entry.name))
+        return []
+    return sorted((entry for entry in tools.iterdir() if entry.is_dir()),
+                  key=lambda entry: _version_key(entry.name))
+
+
+def default_toolset(install_path):
+    """The toolset directory vcvarsall.bat would pick on its own."""
+    marker = (Path(install_path) / "VC" / "Auxiliary" / "Build"
+              / "Microsoft.VCToolsVersion.default.txt")
+    installed = installed_toolsets(install_path)
+    if marker.exists():
+        name = marker.read_text(encoding="utf-8").strip()
+        for entry in installed:
+            if entry.name == name:
+                return entry
+    return installed[-1] if installed else None
+
+
+def select_toolset_directory(install_path, toolset):
+    """The MSVC toolset directory this toolset would build with, or None.
+
+    A pinned ``vcvars_ver`` selects a side-by-side toolset; without one this
+    is whatever the Visual Studio defaults to, which the caller still has to
+    accept.
+    """
+    if toolset.vcvars_ver:
+        matches = [entry for entry in installed_toolsets(install_path)
+                   if matches_msvc_version(entry.name, toolset.vcvars_ver)]
         return matches[-1] if matches else None
-
-    default_file = (Path(install_path) / "VC" / "Auxiliary" / "Build"
-                    / "Microsoft.VCToolsVersion.default.txt")
-    if default_file.exists():
-        name = default_file.read_text(encoding="utf-8").strip()
-        if (tools / name).is_dir():
-            return tools / name
-    directories = sorted((e for e in tools.iterdir() if e.is_dir()),
-                         key=lambda entry: _version_key(entry.name))
-    return directories[-1] if directories else None
+    return default_toolset(install_path)
 
 
-def toolset_directory(install_path, vcvars_ver):
-    """The ``VC/Tools/MSVC/<version>`` directory this configuration will use."""
-    found = find_toolset_directory(install_path, vcvars_ver)
-    if found is None:
-        tools = Path(install_path) / "VC" / "Tools" / "MSVC"
-        available = ", ".join(sorted(e.name for e in tools.iterdir())) \
-            if tools.is_dir() else "none"
-        fail("MSVC toolset {} is not installed under {} (have: {})"
-             .format(vcvars_ver or "(default)", tools, available))
-    return found
+def toolset_is_acceptable(directory, toolset):
+    return directory is not None and any(
+        matches_msvc_version(directory.name, prefix)
+        for prefix in toolset.msvc_versions)
+
+
+def require_toolset_directory(install_path, toolset):
+    """Resolve and check the toolset directory, or explain why it cannot."""
+    chosen = select_toolset_directory(install_path, toolset)
+    available = ", ".join(entry.name
+                          for entry in installed_toolsets(install_path)) or "none"
+    if chosen is None:
+        fail("msvc-{} needs an MSVC toolset matching {} under {}, "
+             "but that Visual Studio has: {}".format(
+                 toolset.name, toolset.vcvars_ver, install_path, available))
+    if not toolset_is_acceptable(chosen, toolset):
+        fail("msvc-{} expects an MSVC toolset from {}, but {} would use {}.\n"
+             "That Visual Studio has: {}\n"
+             "The runner image has probably changed which Visual Studio it "
+             "ships.  Point this toolset at a different runner, or set "
+             "vcvars_ver in build.toml to pin the side-by-side toolset.".format(
+                 toolset.name, " or ".join(toolset.msvc_versions),
+                 install_path, chosen.name, available))
+    return chosen
 
 
 def compiler_path(toolset_dir, arch):
@@ -282,7 +323,7 @@ _B2_CPU_TOKENS = {
 }
 
 
-def write_setup_script(path, install_path, vcvars_ver, arch):
+def write_setup_script(path, install_path, toolset_version, arch):
     """Write the batch file b2 (and we) use to enter the right MSVC shell.
 
     b2 calls it with the cpu it is building for, so the mapping below must
@@ -290,7 +331,8 @@ def write_setup_script(path, install_path, vcvars_ver, arch):
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    version_flag = " -vcvars_ver={}".format(vcvars_ver) if vcvars_ver else ""
+    version_flag = (" -vcvars_ver={}".format(toolset_version)
+                    if toolset_version else "")
     default = vcvars_argument(arch.vcvars_target)
 
     lines = [
@@ -436,13 +478,15 @@ def prepare(workspace, build_config, base_env=None, install_missing=True):
         instance = install_components(toolset, instance)
 
     install_path = instance["installationPath"]
-    tools_dir = toolset_directory(install_path, toolset.vcvars_ver)
+    tools_dir = require_toolset_directory(install_path, toolset)
     cl = compiler_path(tools_dir, arch)
     log("MSVC toolset: {} ({})".format(tools_dir.name, cl))
 
+    # The environment is pinned to the exact toolset that was resolved, so
+    # vcvarsall.bat and the cl.exe below can never end up disagreeing.
     setup_script = write_setup_script(
         workspace.setup_script(build_config), install_path,
-        toolset.vcvars_ver, arch)
+        tools_dir.name, arch)
     dump_script = write_env_dump_script(
         work / "dump-env.bat", setup_script, arch)
     env = read_environment(dump_script, base_env=base_env)

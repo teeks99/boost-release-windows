@@ -44,44 +44,62 @@ build_root = ""
 keep_intermediate = false
 
 # ------------------------------------------------------------ toolchains ---
-# One table per MSVC toolset.  `vcvars_ver` selects a side-by-side toolset
-# inside the installed Visual Studio; empty means "that VS's default".
-# `install_components` are added with the VS installer if they are missing,
-# which is how v141 gets onto a runner image that does not ship it.
+# One table per MSVC toolset.
+#
+# `runner` matters more than it looks: GitHub moved the `windows-2025` and
+# `windows-latest` labels onto the Visual Studio 2026 image in June 2026, so
+# `windows-2022` is now the only label that still carries Visual Studio 2022.
+# (The Windows2025-Readme.md in actions/runner-images describes the old image,
+# not what the label resolves to.)
+#
+# `msvc_versions` is what actually pins the compiler: the MSVC toolset
+# directory that gets used must belong to one of these families, so if a
+# runner image changes which Visual Studio it ships the build stops with an
+# explanation instead of quietly producing, say, v145 binaries named vc143.
+# `vcvars_ver` additionally forces a specific side-by-side toolset; leave it
+# empty to take that Visual Studio's default and let `msvc_versions` check it.
+# `install_components` are added with the Visual Studio installer when the
+# toolset is not there, which is how v141 gets onto a runner image.
 
 [[toolset]]
 name = "14.1"
 vs_display = "Microsoft Visual Studio 2017 toolset (v141)"
-runner = "windows-2025"
+runner = "windows-2022"
 vs_version_range = "[17.0,18.0)"
 vcvars_ver = "14.16"
+msvc_versions = ["14.1"]
 archs = ["32", "64"]
 install_components = ["Microsoft.VisualStudio.Component.VC.v141.x86.x64"]
 
 [[toolset]]
 name = "14.2"
 vs_display = "Microsoft Visual Studio 2019 toolset (v142)"
-runner = "windows-2025"
+runner = "windows-2022"
 vs_version_range = "[17.0,18.0)"
 vcvars_ver = "14.29"
+msvc_versions = ["14.2"]
 archs = ["32", "64"]
 install_components = ["Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64"]
 
+# v143 spans two MSVC directory families: Visual Studio 2022 started at 14.3x
+# and is now at 14.4x.  Both are vc143.
 [[toolset]]
 name = "14.3"
 vs_display = "Microsoft Visual Studio 2022 (v143)"
-runner = "windows-2025"
+runner = "windows-2022"
 vs_version_range = "[17.0,18.0)"
 vcvars_ver = ""
+msvc_versions = ["14.4", "14.3"]
 archs = ["32", "64"]
 install_components = []
 
 [[toolset]]
 name = "14.5"
 vs_display = "Microsoft Visual Studio 2026 (v145)"
-runner = "windows-2025-vs2026"
+runner = "windows-2025"
 vs_version_range = "[18.0,19.0)"
 vcvars_ver = ""
+msvc_versions = ["14.5"]
 archs = ["32", "64"]
 install_components = []
 

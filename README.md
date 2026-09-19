@@ -123,23 +123,49 @@ How a toolset is selected
 
 A GitHub runner image ships one Visual Studio, but each one carries several
 MSVC toolsets side by side and the installer can add more. So a toolset entry
-names a Visual Studio *version range* plus the toolset to select inside it:
+names a Visual Studio *version range*, the toolset to select inside it, and
+the MSVC versions that are acceptable:
 
 ```toml
 [[toolset]]
 name = "14.1"
-runner = "windows-2025"
+runner = "windows-2022"
 vs_version_range = "[17.0,18.0)"     # Visual Studio 2022
 vcvars_ver = "14.16"                 # the v141 toolset inside it
+msvc_versions = ["14.1"]             # what the result has to be
 archs = ["32", "64"]
 install_components = ["Microsoft.VisualStudio.Component.VC.v141.x86.x64"]
 ```
 
 `boostwin toolchain` finds that Visual Studio with `vswhere`, adds any missing
-`install_components`, then writes a small batch file that calls
-`vcvarsall.bat <arch> -vcvars_ver=14.16`. `user-config.jam` points b2 at both
-that script and the exact `cl.exe`, so nothing is left to auto-detection and
-the produced libraries carry the right `vc141` tag.
+`install_components`, resolves the exact `VC/Tools/MSVC/<version>` directory,
+then writes a small batch file that calls `vcvarsall.bat <arch>
+-vcvars_ver=<that exact version>`. `user-config.jam` points b2 at both that
+script and the matching `cl.exe`, so nothing is left to auto-detection and the
+produced libraries carry the right `vc141` tag.
+
+`msvc_versions` is the safety net. If the resolved toolset is not from one of
+those families the build stops and says so, rather than quietly producing (for
+example) v145 binaries named `vc143`. Which runner label carries which Visual
+Studio is not stable -- GitHub moved `windows-latest` and `windows-2025` onto
+the Visual Studio 2026 image in June 2026, leaving `windows-2022` as the only
+label with Visual Studio 2022 -- so the current mapping is:
+
+| toolset | runner | Visual Studio | MSVC |
+| --- | --- | --- | --- |
+| msvc-14.1 | `windows-2022` | 2022 | v141, installed on demand |
+| msvc-14.2 | `windows-2022` | 2022 | v142, side by side |
+| msvc-14.3 | `windows-2022` | 2022 | v143, the default |
+| msvc-14.5 | `windows-2025` | 2026 | v145, the default |
+
+`python -m boostwin toolchain --list` prints every Visual Studio on a machine
+and which toolset each one satisfies, which is the quickest way to check a
+runner image against this table. The build jobs run it too, so it is in the
+log before anything can fail.
+
+When `windows-2022` is eventually retired, msvc-14.3 moves to a Visual Studio
+2026 image by setting `vcvars_ver = "14.44"` -- that toolset ships with VS 2026
+as a side-by-side component, and `msvc_versions` will confirm it.
 
 
 The smoke tests

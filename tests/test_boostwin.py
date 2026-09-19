@@ -39,7 +39,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(len(found), 1)
         build_config = found[0]
         self.assertEqual(build_config.lib_dir, "lib64-msvc-14.3")
-        self.assertEqual(build_config.runner, "windows-2025")
+        self.assertEqual(build_config.runner, "windows-2022")
         self.assertIn("toolset=msvc-14.3", build_config.b2_properties)
         self.assertIn("address-model=64", build_config.b2_properties)
         self.assertIn("runtime-link=shared", build_config.b2_properties)
@@ -181,6 +181,31 @@ class VersionRangeTests(unittest.TestCase):
     def test_a_missing_version_never_matches(self):
         self.assertFalse(msvc.version_in_range("", "[17.0,18.0)"))
 
+    # What each GitHub runner label actually carries.  windows-latest and
+    # windows-2025 were moved onto the Visual Studio 2026 image in June 2026,
+    # which is why anything needing Visual Studio 2022 says windows-2022.
+    RUNNER_VISUAL_STUDIO = {
+        "windows-2022": "17.14.37628.2",
+        "windows-2025": "18.9.12120.119",
+        "windows-latest": "18.9.12120.119",
+        "windows-2025-vs2026": "18.9.12120.119",
+        "windows-11-arm": "17.14.37628.2",
+        "windows-11-vs2026-arm": "18.10.12201.205",
+    }
+
+    def test_each_toolset_asks_for_the_visual_studio_its_runner_has(self):
+        config = load()
+        for toolset in config.toolsets:
+            self.assertIn(
+                toolset.runner, self.RUNNER_VISUAL_STUDIO,
+                "msvc-{} uses an unknown runner label".format(toolset.name))
+            version = self.RUNNER_VISUAL_STUDIO[toolset.runner]
+            self.assertTrue(
+                msvc.version_in_range(version, toolset.vs_version_range),
+                "msvc-{} runs on {}, which has Visual Studio {}, but asks "
+                "for {}".format(toolset.name, toolset.runner, version,
+                                toolset.vs_version_range))
+
     def test_every_configured_toolset_range_is_understood(self):
         config = load()
         known = {
@@ -192,6 +217,112 @@ class VersionRangeTests(unittest.TestCase):
                           "unrecognised range for msvc-" + toolset.name)
             self.assertTrue(msvc.version_in_range(
                 known[toolset.vs_version_range], toolset.vs_version_range))
+
+
+def make_visual_studio(root, toolsets, default=None):
+    """A directory tree shaped like a Visual Studio installation."""
+    root = Path(root)
+    for name in toolsets:
+        (root / "VC" / "Tools" / "MSVC" / name).mkdir(parents=True)
+    build = root / "VC" / "Auxiliary" / "Build"
+    build.mkdir(parents=True, exist_ok=True)
+    (build / "Microsoft.VCToolsVersion.default.txt").write_text(
+        default or toolsets[-1])
+    return root
+
+
+class ToolsetSelectionTests(unittest.TestCase):
+    """Picking the MSVC toolset out of whichever Visual Studio is installed.
+
+    GitHub moved the windows-2025 label onto the Visual Studio 2026 image in
+    June 2026; these pin down that such a move is refused loudly rather than
+    producing v145 binaries labelled vc143.
+    """
+
+    # What each image actually carries.
+    VS2022 = ["14.29.30133", "14.44.35207"]
+    VS2026 = ["14.29.30133", "14.44.35207", "14.50.35000"]
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.config = load()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def toolset(self, name):
+        return self.config.toolset(name)
+
+    def test_family_matching(self):
+        for name, prefix, expected in (
+            ("14.16.27023", "14.16", True),
+            ("14.16.27023", "14.1", True),
+            ("14.29.30133", "14.2", True),
+            ("14.29.30133", "14.1", False),
+            ("14.44.35207", "14.4", True),
+            ("14.44.35207", "14.3", False),
+            ("14.34.31933", "14.3", True),
+            ("14.50.35000", "14.5", True),
+            ("14.50.35000", "14.4", False),
+        ):
+            self.assertEqual(msvc.matches_msvc_version(name, prefix), expected,
+                             "{} vs {}".format(name, prefix))
+
+    def test_visual_studio_2022_satisfies_141_142_and_143(self):
+        vs = make_visual_studio(self.root / "vs2022", self.VS2022)
+        self.assertEqual(
+            msvc.require_toolset_directory(vs, self.toolset("14.3")).name,
+            "14.44.35207")
+        self.assertEqual(
+            msvc.require_toolset_directory(vs, self.toolset("14.2")).name,
+            "14.29.30133")
+        # v141 has to be installed first, so nothing is selected yet.
+        self.assertIsNone(
+            msvc.select_toolset_directory(vs, self.toolset("14.1")))
+
+    def test_visual_studio_2026_satisfies_145(self):
+        vs = make_visual_studio(self.root / "vs2026", self.VS2026)
+        self.assertEqual(
+            msvc.require_toolset_directory(vs, self.toolset("14.5")).name,
+            "14.50.35000")
+
+    def test_143_refuses_a_visual_studio_2026_default(self):
+        # Exactly what happened when windows-2025 became the VS 2026 image:
+        # the default toolset is v145, and calling it vc143 would be wrong.
+        vs = make_visual_studio(self.root / "vs2026", self.VS2026)
+        with self.assertRaises(SystemExit) as raised:
+            msvc.require_toolset_directory(vs, self.toolset("14.3"))
+        message = str(raised.exception)
+        self.assertIn("14.50.35000", message)
+        self.assertIn("runner image", message)
+
+    def test_145_refuses_a_visual_studio_2022(self):
+        vs = make_visual_studio(self.root / "vs2022", self.VS2022)
+        with self.assertRaises(SystemExit) as raised:
+            msvc.require_toolset_directory(vs, self.toolset("14.5"))
+        self.assertIn("14.44.35207", str(raised.exception))
+
+    def test_a_pinned_toolset_works_in_either_visual_studio(self):
+        # 14.2 is a side-by-side toolset on both images, so it does not care
+        # which Visual Studio hosts it.
+        for name, toolsets in (("vs2022", self.VS2022), ("vs2026", self.VS2026)):
+            vs = make_visual_studio(self.root / name, toolsets)
+            self.assertEqual(
+                msvc.require_toolset_directory(vs, self.toolset("14.2")).name,
+                "14.29.30133")
+
+    def test_the_default_marker_is_preferred_over_the_newest(self):
+        vs = make_visual_studio(self.root / "vs2022", self.VS2022,
+                                default="14.29.30133")
+        self.assertEqual(msvc.default_toolset(vs).name, "14.29.30133")
+
+    def test_a_visual_studio_with_no_toolsets_is_reported(self):
+        vs = self.root / "empty"
+        (vs / "VC").mkdir(parents=True)
+        with self.assertRaises(SystemExit) as raised:
+            msvc.require_toolset_directory(vs, self.toolset("14.3"))
+        self.assertIn("none", str(raised.exception))
 
 
 class InventoryTests(unittest.TestCase):

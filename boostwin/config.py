@@ -35,6 +35,7 @@ class Toolset:
     vs_version_range: str
     vs_display: str
     vcvars_ver: str
+    msvc_versions: tuple
     archs: tuple
     install_components: tuple
 
@@ -442,6 +443,10 @@ def load(path=None, overrides=None):
     toolsets = []
     for table in _require(data, "toolset", "top level"):
         name = str(_require(table, "name", "toolset"))
+        # Default to the toolset's own name: msvc-14.2 wants an MSVC 14.2x
+        # directory.  Only v143, which spans 14.3x and 14.4x, needs more.
+        msvc_versions = tuple(
+            str(v) for v in table.get("msvc_versions", [name])) or (name,)
         toolsets.append(Toolset(
             name=name,
             runner=str(_require(table, "runner", "toolset " + name)),
@@ -449,6 +454,7 @@ def load(path=None, overrides=None):
                 _require(table, "vs_version_range", "toolset " + name)),
             vs_display=str(table.get("vs_display", "")),
             vcvars_ver=str(table.get("vcvars_ver", "")),
+            msvc_versions=msvc_versions,
             archs=tuple(str(a) for a in _require(
                 table, "archs", "toolset " + name)),
             install_components=tuple(table.get("install_components", ())),
