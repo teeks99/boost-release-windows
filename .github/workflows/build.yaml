@@ -76,8 +76,8 @@ env:
   # spending a full release on it.  Edit these while trying the workflow out;
   # empty values here would mean the whole matrix.
   TRIAL_CONFIGS: ""
-  TRIAL_TOOLSETS: "14.3"
-  TRIAL_ARCHS: "64"
+  TRIAL_TOOLSETS: ""
+  TRIAL_ARCHS: ""
   # Empty means both debug and release, which is the complete set of six
   # configurations for one compiler and architecture.
   TRIAL_VARIANTS: ""
