@@ -2,15 +2,19 @@
 
     python -m unittest discover -s tests
 """
+import contextlib
+import io
 import json
 import os
+import re
+import shlex
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
 from boostwin import config as config_module
-from boostwin import msvc, package, paths, smoke
+from boostwin import cli, msvc, package, paths, smoke
 
 from . import fixture
 
@@ -141,6 +145,84 @@ class LibraryNameTests(unittest.TestCase):
         self.assertIn("python314", smoke.required_libraries(config, shared_runtime))
         self.assertNotIn("python314",
                          smoke.required_libraries(config, static_runtime))
+
+
+def run_cli(*argv):
+    """Run a boostwin command against this repo's build.toml, capturing output."""
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        code = cli.main(["--config-file", str(BUILD_TOML)] + list(argv))
+    return code, buffer.getvalue()
+
+
+class InfoAndMatrixTests(unittest.TestCase):
+    """What the two read-only commands put in front of someone."""
+
+    def test_info_describes_every_matrix_dimension(self):
+        code, output = run_cli("info")
+        self.assertEqual(code, 0)
+        for expected in ("toolsets", "msvc-14.1", "architectures", "32, 64",
+                         "variants", "debug, release", "link",
+                         "shared/shared", "static/static", "threading",
+                         "configurations", "48"):
+            self.assertIn(expected, output)
+
+    def test_info_does_not_mention_github_runners(self):
+        # Runner labels mean nothing to someone building on their own machine.
+        _code, output = run_cli("info")
+        self.assertNotIn("windows-", output)
+
+    def test_matrix_lists_configuration_ids_only(self):
+        code, output = run_cli("matrix", "--toolset", "14.3", "--arch", "64")
+        self.assertEqual(code, 0)
+        self.assertIn("msvc-14.3-64-release-static-shared", output)
+        self.assertNotIn("windows-", output)
+        self.assertIn("6 configurations", output)
+
+    def test_matrix_shows_runners_when_asked(self):
+        code, output = run_cli("matrix", "--toolset", "14.3", "--runners")
+        self.assertEqual(code, 0)
+        self.assertIn("windows-2022", output)
+        self.assertIn("runner image", output)
+
+    def test_matrix_json_always_carries_the_runner(self):
+        # CI needs it even though the human listing does not show it.
+        code, output = run_cli("matrix", "--json", "--id",
+                               "msvc-14.5-64-release-static-shared")
+        self.assertEqual(code, 0)
+        entries = json.loads(output)
+        self.assertEqual(entries[0]["runner"], "windows-2025")
+
+
+class DocumentedCommandTests(unittest.TestCase):
+    """Every command line the docs show has to be one the tool accepts."""
+
+    COMMAND = re.compile(r"python3? -m boostwin ([^\n#`]*)")
+    SOURCES = ("README.md", "build.toml", ".github/workflows/build.yaml")
+
+    def documented_commands(self):
+        for name in self.SOURCES:
+            text = (REPO / name).read_text(encoding="utf-8")
+            for line in text.splitlines():
+                for arguments in self.COMMAND.findall(line):
+                    arguments = arguments.strip()
+                    # Skip anything the shell would have expanded first.
+                    if not arguments or "$" in arguments or "{" in arguments:
+                        continue
+                    yield name, arguments
+
+    def test_the_docs_show_at_least_a_few_commands(self):
+        self.assertGreaterEqual(len(list(self.documented_commands())), 8)
+
+    def test_every_documented_command_parses(self):
+        parser = cli.build_parser()
+        for name, arguments in self.documented_commands():
+            with self.subTest(source=name, command=arguments):
+                try:
+                    parser.parse_args(shlex.split(arguments))
+                except SystemExit:
+                    self.fail("{} documents a command boostwin rejects: "
+                              "python -m boostwin {}".format(name, arguments))
 
 
 class VersionRangeTests(unittest.TestCase):

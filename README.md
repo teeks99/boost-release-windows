@@ -18,6 +18,20 @@ python -m boostwin all --jobs 4             # build all of them here
 python -m boostwin run --id msvc-14.3-64-release-static-shared
 ```
 
+```
+$ python -m boostwin info
+...
+toolsets        : msvc-14.1, msvc-14.2, msvc-14.3, msvc-14.5
+architectures   : 32, 64
+variants        : debug, release
+link            : shared/shared, static/shared, static/static   (link/runtime-link)
+threading       : multi
+configurations  : 48  (8 toolset+architecture pairs x 2 variants x 3 link combinations)
+```
+
+Which GitHub runner image a toolset builds on is a CI detail, so it stays out
+of both listings; `matrix --runners` shows it when you want it.
+
 
 Requirements
 ------------
@@ -49,9 +63,6 @@ The per-configuration zips hold binaries only. They are meant to sit beside the
 matching Boost source release (the same archive this build starts from), which
 is where the headers come from. The `.7z` is the self-contained option.
 
-The Inno Setup installers are gone; the zips replace them.
-
-
 Configuration
 -------------
 
@@ -82,8 +93,8 @@ Commands
 
 | Command | What it does |
 | --- | --- |
-| `info` | print the resolved configuration, build root and free space |
-| `matrix` | list the build configurations; `--json` / `--github` for CI |
+| `info` | the resolved release, dependencies and every matrix dimension |
+| `matrix` | list the build configurations; `--runners` adds the GitHub runner image, `--json` / `--github` are for CI |
 | `fetch` | download the Boost source and the dependency archives |
 | `prepare` | unpack everything and build `b2` |
 | `toolchain` | locate the compiler and write `user-config.jam` (for debugging) |
@@ -246,19 +257,6 @@ Remove the branch from `branches:` when the work merges.
 Jobs do not fail the run when b2 reports errors — Boost does not always build
 cleanly everywhere, and the result matrix is part of the release. The smoke
 tests are what decide whether a configuration is good.
-
-
-Adding arm64 later
-------------------
-
-The pieces are in place: `[arch.arm64]` already exists in `build.toml`, the
-architecture carries its own b2 properties and `vcvarsall` target, library name
-checks understand the `a64` tag, archive names are derived from the
-architectures in play, and `windows-11-arm` / `windows-11-vs2026-arm` runner
-images exist. Adding `"arm64"` to a toolset's `archs` is the change; whether to
-cross-compile from an x64 runner or build natively on an arm64 one is then just
-which `runner` that toolset names.
-
 
 Publishing
 ----------

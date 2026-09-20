@@ -72,23 +72,42 @@ def cmd_info(workspace, args):
     print("config file     : {}".format(config.path))
     print("build root      : {}  ({} free)".format(
         workspace.root, format_size(workspace.free_bytes())))
-    print("boost release   : {}  ({})".format(release.dotted_version, release.type))
+    print("boost release   : {}  ({})".format(release.dotted_version,
+                                              release.type))
     print("release name    : {}".format(release.release_name))
     print("source          : {}".format(release.source_url))
     print("dependencies    : Python {}, zlib {}, bzip2 {}, 7-Zip {}".format(
         config.deps.python, config.deps.zlib, config.deps.bzip2,
         config.deps.sevenzip))
-    print("toolsets        : {}".format(
-        ", ".join("msvc-{} on {}".format(t.name, t.runner)
-                  for t in config.toolsets)))
-    print("architectures   : {}".format(", ".join(config.arch_keys)))
-    print("configurations  : {}".format(len(config.matrix())))
     print("full archive    : {}".format(config.full_archive_name))
+    print()
+    print("toolsets        : {}".format(
+        ", ".join("msvc-" + t.name for t in config.toolsets)))
+    print("architectures   : {}".format(", ".join(config.arch_keys)))
+    print("variants        : {}".format(", ".join(config.variants)))
+    print("link            : {}   (link/runtime-link)".format(
+        ", ".join("{}/{}".format(combo.link, combo.runtime_link)
+                  for combo in config.link_combos)))
+    print("threading       : {}".format(", ".join(config.threadings)))
+    print("configurations  : {}  ({})".format(
+        len(config.matrix()), _matrix_breakdown(config)))
+    print()
     print("host            : {} ({} cpus)".format(
         sys.platform, multiprocessing.cpu_count()))
     if WINDOWS:
         print("host arch       : {}".format(msvc.host_arch()))
     return 0
+
+
+def _matrix_breakdown(config):
+    """Spell out how the configuration count is arrived at."""
+    pairs = sum(len(toolset.archs) for toolset in config.toolsets)
+    parts = ["{} toolset+architecture pairs".format(pairs),
+             "{} variants".format(len(config.variants)),
+             "{} link combinations".format(len(config.link_combos))]
+    if len(config.threadings) > 1:
+        parts.append("{} threading models".format(len(config.threadings)))
+    return " x ".join(parts)
 
 
 def cmd_matrix(workspace, args):
@@ -101,10 +120,20 @@ def cmd_matrix(workspace, args):
     if args.json or args.github:
         print(json.dumps(entries, indent=2 if not args.github else None))
         return 0
-    for entry in entries:
-        print("{:<42} {}".format(entry["id"], entry["runner"]))
-    print("\n{} configurations on {} runner image(s)".format(
-        len(entries), len({e["runner"] for e in entries})))
+
+    # The runner label only means anything to GitHub Actions, so it stays out
+    # of the way unless it is asked for.
+    if args.runners:
+        width = max(len(entry["id"]) for entry in entries)
+        for entry in entries:
+            print("{:<{width}}  {}".format(entry["id"], entry["runner"],
+                                           width=width))
+        print("\n{} configurations on {} runner image(s)".format(
+            len(entries), len({e["runner"] for e in entries})))
+    else:
+        for entry in entries:
+            print(entry["id"])
+        print("\n{} configurations".format(len(entries)))
     return 0
 
 
@@ -361,6 +390,9 @@ def build_parser():
                         help="print the matrix as JSON")
     matrix.add_argument("--github", action="store_true",
                         help="write the matrix to $GITHUB_OUTPUT")
+    matrix.add_argument("--runners", action="store_true",
+                        help="also show which GitHub runner image each "
+                             "configuration would build on")
     add_selection_arguments(matrix, single=False)
     matrix.set_defaults(handler=cmd_matrix)
 

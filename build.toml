@@ -1,7 +1,7 @@
 # Configuration for the Boost Windows release builds.
 #
-#   python -m boostwin matrix --list      # what will be built
-#   python -m boostwin all                # build everything on this machine
+#   python -m boostwin matrix               # what will be built
+#   python -m boostwin all                  # build everything on this machine
 #
 # Everything below is also what the GitHub Actions workflow reads, so a change
 # here changes both the local build and CI.
