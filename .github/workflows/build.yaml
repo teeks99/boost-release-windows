@@ -78,7 +78,9 @@ env:
   TRIAL_CONFIGS: ""
   TRIAL_TOOLSETS: "14.3"
   TRIAL_ARCHS: "64"
-  TRIAL_VARIANTS: "release"
+  # Empty means both debug and release, which is the complete set of six
+  # configurations for one compiler and architecture.
+  TRIAL_VARIANTS: ""
 
 jobs:
   matrix:

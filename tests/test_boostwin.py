@@ -588,6 +588,50 @@ class PackageTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_a_complete_build_keeps_the_established_archive_name(self):
+        lib_dirs = sorted({c.lib_dir for c in self.config.matrix()})
+        self.assertEqual(package.full_archive_name(self.config, lib_dirs),
+                         "boost_1_93_0-snapshot-bin-msvc-all-32-64.7z")
+        self.assertEqual(package.missing_lib_dirs(self.config, lib_dirs), [])
+
+    def test_a_partial_build_is_named_partial(self):
+        # Otherwise a one compiler trial produces a file called msvc-all.
+        name = package.full_archive_name(self.config, ["lib64-msvc-14.3"])
+        self.assertEqual(
+            name, "boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z")
+        self.assertNotIn("all", name)
+        self.assertEqual(len(package.missing_lib_dirs(
+            self.config, ["lib64-msvc-14.3"])), 7)
+
+    def test_a_missing_architecture_is_still_partial(self):
+        lib_dirs = sorted(c.lib_dir for c in self.config.matrix()
+                          if c.arch.key == "64")
+        self.assertIn("partial",
+                      package.full_archive_name(self.config, set(lib_dirs)))
+
+    def test_packaging_one_toolset_names_everything_for_that_toolset(self):
+        # Exactly the six configuration trial: one complete library
+        # directory, and a full archive that does not claim to be a release.
+        trial = [c for c in self.config.matrix()
+                 if c.toolset.name == "14.3" and c.arch.key == "64"]
+        self.assertEqual(len(trial), 6)
+        root = Path(self.tmp.name) / "trial"
+        fixture.write(root, self.config, trial)
+        workspace = paths.Workspace(root, self.config).ensure_layout()
+        package.package(workspace)
+        names = {p.name for p in workspace.out.iterdir()}
+        self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.3-64.zip", names)
+        self.assertIn("boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z",
+                      names)
+        self.assertNotIn("boost_1_93_0-snapshot-bin-msvc-all-32-64.7z", names)
+        # and that one zip holds every variant of the six
+        with zipfile.ZipFile(
+                workspace.out / "boost_1_93_0-snapshot-bin-msvc-14.3-64.zip"
+        ) as archive:
+            entries = archive.namelist()
+        for tag in ("-mt-x64-", "-mt-gd-x64-", "-mt-s-x64-", "-mt-sgd-x64-"):
+            self.assertTrue(any(tag in name for name in entries), tag)
+
     def test_packaging_produces_the_expected_artifacts(self):
         package.package(self.workspace)
         out = self.workspace.out

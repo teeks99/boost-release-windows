@@ -71,6 +71,44 @@ def _config_id_for(meta_dir, by_id):
     return directory
 
 
+def describe_lib_dirs(lib_dirs):
+    """Split ``lib64-msvc-14.3`` names back into toolsets and architectures."""
+    toolsets = []
+    archs = []
+    for name in lib_dirs:
+        arch, _, toolset = name.partition("-msvc-")
+        arch = arch[len("lib"):]
+        if toolset and toolset not in toolsets:
+            toolsets.append(toolset)
+        if arch and arch not in archs:
+            archs.append(arch)
+    return sorted(toolsets), sorted(archs)
+
+
+def full_archive_name(config, lib_dirs):
+    """Name the everything archive after what is actually inside it.
+
+    A build of part of the matrix -- one compiler while trying something out,
+    or a rerun of the configurations that failed -- must not produce a file
+    called ``msvc-all`` that only holds one library directory.
+    """
+    toolsets, archs = describe_lib_dirs(lib_dirs)
+    complete = (toolsets == sorted(t.name for t in config.toolsets)
+                and archs == sorted(config.arch_keys))
+    label = "all" if complete else "partial-" + "-".join(toolsets)
+    return "{}-bin-msvc-{}-{}.7z".format(
+        config.release.release_name, label, "-".join(archs))
+
+
+def missing_lib_dirs(config, lib_dirs):
+    """Library directories the full matrix would have produced but did not."""
+    expected = []
+    for build_config in config.matrix():
+        if build_config.lib_dir not in expected:
+            expected.append(build_config.lib_dir)
+    return [name for name in expected if name not in lib_dirs]
+
+
 def merge_into_source(workspace, stages_root):
     """Copy every staged library directory into the Boost source tree."""
     source = workspace.source
@@ -340,6 +378,12 @@ def package(workspace, stages_root=None, per_config=True, full=True,
 
     with Timer("package"):
         lib_dirs = merge_into_source(workspace, stages_root)
+        absent = missing_lib_dirs(config, lib_dirs)
+        if absent:
+            log("warning: this is a partial build -- nothing was staged for "
+                + ", ".join(absent))
+            log("warning: the archives are named accordingly and are not a "
+                "complete release")
         write_dependency_versions(workspace, stages_root, lib_dirs)
         collect_logs(workspace, stages_root)
         check_consistency(workspace, stages_root)
@@ -363,7 +407,7 @@ def package(workspace, stages_root=None, per_config=True, full=True,
 
         if full:
             make_7z(workspace, workspace.source,
-                    workspace.out / config.full_archive_name)
+                    workspace.out / full_archive_name(config, lib_dirs))
 
         if checksums:
             write_checksums(workspace)

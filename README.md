@@ -53,7 +53,7 @@ For `boost_1_93_0`:
 | File | Contents |
 | --- | --- |
 | `boost_1_93_0-bin-msvc-14.3-64.zip` | one `lib64-msvc-14.3` directory: the `.lib`, `.dll` and `.pdb` files for that compiler and architecture, plus `DEPENDENCY_VERSIONS.txt`. One zip per compiler/architecture. |
-| `boost_1_93_0-bin-msvc-all-32-64.7z` | the whole tree: Boost's headers and every `libNN-msvc-X.Y` directory. |
+| `boost_1_93_0-bin-msvc-all-32-64.7z` | the whole tree: Boost's headers and every `libNN-msvc-X.Y` directory. A build of only part of the matrix is named `...-bin-msvc-partial-14.3-64.7z` instead, so it cannot be mistaken for a release. |
 | `boost_1_93_0-32bitlog.txt`, `-64bitlog.txt` | every configuration's b2 output for that architecture, concatenated. |
 | `DEPENDENCY_VERSIONS.txt` | generated from the compilers and dependencies the build actually used. |
 | `result_matrix.txt` | generated from the smoke test results. |
