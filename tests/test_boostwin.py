@@ -12,6 +12,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from boostwin import config as config_module
 from boostwin import cli, msvc, package, paths, smoke
@@ -575,6 +576,85 @@ class ExtraLinkTests(unittest.TestCase):
         config = load()
         for stem in config.smoke.extra_link_libs:
             self.assertIn(stem, config.smoke.required_libs)
+
+
+class DependencyOrderingTests(unittest.TestCase):
+    """Dependencies must be unpacked before the toolchain is resolved.
+
+    Resolving the toolchain writes user-config.jam, and that step decides
+    whether to configure Boost.Python by checking whether the Python
+    dependency has already been unpacked.  On a fresh build root, doing
+    this the other way round silently produces a user-config.jam with no
+    Boost.Python at all -- only a log warning, no error.
+    """
+
+    ID = "msvc-14.3-64-release-static-shared"
+
+    def _args(self, command, *extra):
+        parser = cli.build_parser()
+        return parser.parse_args(
+            ["--config-file", str(BUILD_TOML), command, "--id", self.ID]
+            + list(extra))
+
+    def _workspace(self, args, build_root):
+        args.build_root = build_root
+        return cli.make_workspace(args)
+
+    def _patch_common(self, order):
+        fake_toolchain = mock.Mock(env={})
+
+        def record_extract(*_args, **_kwargs):
+            order.append("extract_dependencies")
+
+        def record_toolchain(*_args, **_kwargs):
+            order.append("toolchain_for")
+            return fake_toolchain
+
+        patches = [
+            mock.patch.object(cli.source, "fetch"),
+            mock.patch.object(cli.source, "extract_dependencies",
+                              side_effect=record_extract),
+            mock.patch.object(cli.source, "prepare"),
+            mock.patch.object(cli, "toolchain_for",
+                              side_effect=record_toolchain),
+            mock.patch.object(cli.build_module, "build", return_value={
+                "b2_exit_code": 0, "staged_files": 0, "staged_bytes": 0,
+                "seconds": 0.0}),
+            mock.patch.object(cli.smoke, "test",
+                              return_value={"ok": True, "checks": []}),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_run_unpacks_dependencies_before_resolving_the_toolchain(self):
+        order = []
+        self._patch_common(order)
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._args("run", "--no-fetch")
+            workspace = self._workspace(args, tmp)
+            self.assertEqual(cli.cmd_run(workspace, args), 0)
+        self.assertEqual(order, ["extract_dependencies", "toolchain_for"])
+
+    def test_prepare_unpacks_dependencies_before_resolving_the_toolchain(self):
+        order = []
+        self._patch_common(order)
+        with mock.patch.object(cli, "WINDOWS", True), \
+             tempfile.TemporaryDirectory() as tmp:
+            args = self._args("prepare", "--no-fetch")
+            workspace = self._workspace(args, tmp)
+            self.assertEqual(cli.cmd_prepare(workspace, args), 0)
+        self.assertEqual(order, ["extract_dependencies", "toolchain_for"])
+
+    def test_all_unpacks_dependencies_before_resolving_the_toolchain(self):
+        order = []
+        self._patch_common(order)
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._args("all", "--no-fetch", "--no-package")
+            workspace = self._workspace(args, tmp)
+            self.assertEqual(cli.cmd_all(workspace, args), 0)
+        self.assertEqual(order[0], "extract_dependencies")
+        self.assertIn("toolchain_for", order)
 
 
 class PackageTests(unittest.TestCase):

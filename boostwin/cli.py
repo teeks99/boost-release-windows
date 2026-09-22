@@ -148,6 +148,11 @@ def cmd_prepare(workspace, args):
     if args.no_bootstrap or not WINDOWS:
         source.prepare(workspace, do_bootstrap=False)
         return 0
+    # Dependencies (including Python) must be unpacked before the toolchain
+    # is resolved, since resolving it writes user-config.jam and that needs
+    # to see workspace.python_root() already populated to configure
+    # Boost.Python; otherwise it is silently left out on a fresh build root.
+    source.extract_dependencies(workspace)
     # b2 is bootstrapped inside this configuration's MSVC environment, which
     # is what lets a brand new Visual Studio work before b2 learns to find it.
     build_config = one(workspace, args)
@@ -202,6 +207,9 @@ def cmd_run(workspace, args):
     build_config = one(workspace, args)
     if not args.no_fetch:
         source.fetch(workspace)
+    # See cmd_prepare: dependencies must be unpacked before the toolchain is
+    # resolved, or user-config.jam is written with no Boost.Python.
+    source.extract_dependencies(workspace)
     toolchain = toolchain_for(workspace, build_config, install_missing=True)
     source.prepare(workspace, env=toolchain.env)
     result = build_module.build(workspace, build_config, toolchain,
@@ -221,6 +229,9 @@ def cmd_all(workspace, args):
         len(configs), workspace.root))
     if not args.no_fetch:
         source.fetch(workspace)
+    # See cmd_prepare: dependencies must be unpacked before the toolchain is
+    # resolved, or user-config.jam is written with no Boost.Python.
+    source.extract_dependencies(workspace)
 
     first_toolchain = toolchain_for(workspace, configs[0], install_missing=True)
     source.prepare(workspace, env=first_toolchain.env)
