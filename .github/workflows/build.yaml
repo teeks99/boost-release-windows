@@ -6,12 +6,14 @@ name: Build Boost Windows binaries
 # local build uses, so CI and a hand-run build cannot drift apart.
 
 on:
-  push:
-    # master builds the whole matrix.  Any other branch listed here builds
-    # only the TRIAL_* slice below, which is how this workflow gets exercised
-    # before it is merged.  Remove the extra branch once it has.
-    branches: [master, distributed-builds]
-  pull_request:
+  # Uncomment either (or both) to build a specific commit automatically --
+  # e.g. while iterating on this workflow itself.  Both build the whole
+  # matrix and package it, same as a workflow_dispatch with default inputs.
+  # Comment them back out again afterwards; workflow_dispatch is the only
+  # trigger meant to stay on.
+  # push:
+  #   branches: [master]
+  # pull_request:
   workflow_dispatch:
     inputs:
       version:
@@ -71,17 +73,6 @@ env:
   BOOSTWIN_RELEASE_BETA: ${{ inputs.beta }}
   BOOSTWIN_RELEASE_RC: ${{ inputs.rc }}
 
-  # A pull request, or a push to any branch other than master, builds only
-  # this slice of the matrix -- enough to prove the machinery works without
-  # spending a full release on it.  Edit these while trying the workflow out;
-  # empty values here would mean the whole matrix.
-  TRIAL_CONFIGS: ""
-  TRIAL_TOOLSETS: ""
-  TRIAL_ARCHS: ""
-  # Empty means both debug and release, which is the complete set of six
-  # configurations for one compiler and architecture.
-  TRIAL_VARIANTS: ""
-
 jobs:
   matrix:
     name: Work out the matrix
@@ -105,18 +96,8 @@ jobs:
           TOOLSETS: ${{ inputs.toolsets }}
           ARCHS: ${{ inputs.archs }}
           VARIANTS: ${{ inputs.variants }}
-          IS_TRIAL: ${{ github.ref != 'refs/heads/master' }}
         run: |
-          # A dispatch that asked for something specific always wins; a trial
-          # run that asked for nothing gets the TRIAL_* slice.
-          if [ "$IS_TRIAL" = "true" ] && \
-             [ -z "$CONFIGS$TOOLSETS$ARCHS$VARIANTS" ]; then
-            CONFIGS="$TRIAL_CONFIGS"
-            TOOLSETS="$TRIAL_TOOLSETS"
-            ARCHS="$TRIAL_ARCHS"
-            VARIANTS="$TRIAL_VARIANTS"
-          fi
-
+          # Empty means the whole matrix.
           filters=()
           add_filter() {
             local flag="$1"
@@ -215,7 +196,6 @@ jobs:
     name: Assemble the release
     needs: [matrix, downloads, build]
     if: ${{ !cancelled() && needs.matrix.result == 'success'
-        && github.event_name != 'pull_request'
         && (github.event_name != 'workflow_dispatch' || inputs.package) }}
     runs-on: windows-2025
     timeout-minutes: 180
