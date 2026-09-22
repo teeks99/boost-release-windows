@@ -1,0 +1,150 @@
+# Alternate configuration for building on a workstation that has Visual
+# Studio 2017, 2019, 2022 and 2026 installed side by side as their own
+# products (rather than a single Visual Studio with older toolsets added
+# on as side-by-side components, which is what build.toml assumes for the
+# GitHub-hosted runner images).
+#
+#   python -m boostwin --config-file build.vcall.toml info
+#   python -m boostwin --config-file build.vcall.toml all --jobs 4
+#
+# Everything except [[toolset]] is identical to build.toml; see that file for
+# the parts of the schema not commented again here.
+
+# --------------------------------------------------------------- release ---
+[release]
+version = "93"
+minor_version = "0"
+type = "master-snapshot"
+repo = "archives"
+beta = 1
+rc = 1
+source_extension = "tar.bz2"
+
+# ------------------------------------------------------------------ deps ---
+[deps]
+url = "https://boost.teeks99.com/deps/"
+python = "3.14.0"
+zlib = "1.3.1"
+bzip2 = "1.0.8"
+sevenzip = "2201"
+
+# ----------------------------------------------------------------- build ---
+[build]
+b2_jobs = 0
+without = ["mpi"]
+layout = "versioned"
+build_type = "complete"
+extra_b2_args = []
+build_root = ""
+keep_intermediate = false
+
+# ------------------------------------------------------------ toolchains ---
+# One table per MSVC toolset, each pointed at its own standalone Visual
+# Studio install instead of a shared one with side-by-side components.
+#
+# `vs_version_range` is what tells them apart here: Visual Studio 2017 is
+# product version 15.x, 2019 is 16.x, 2022 is 17.x and 2026 is 18.x, so each
+# toolset only ever matches the one Visual Studio it names. `runner` is a CI
+# label that means nothing on a local machine; it is kept only because the
+# config schema requires it.
+#
+# `install_components` is empty everywhere: every toolset is expected to
+# already be part of its Visual Studio's own installation, so there is
+# nothing for the installer to add, and build.toml's component ids are for
+# adding a toolset to Visual Studio 2022, which would be the wrong installer
+# to invoke against 2017 or 2019 here anyway.
+
+[[toolset]]
+name = "14.1"
+vs_display = "Microsoft Visual Studio 2017 (v141)"
+runner = "local"
+vs_version_range = "[15.0,16.0)"
+vcvars_ver = ""
+msvc_versions = ["14.1"]
+archs = ["32", "64"]
+install_components = []
+
+[[toolset]]
+name = "14.2"
+vs_display = "Microsoft Visual Studio 2019 (v142)"
+runner = "local"
+vs_version_range = "[16.0,17.0)"
+vcvars_ver = ""
+msvc_versions = ["14.2"]
+archs = ["32", "64"]
+install_components = []
+
+# v143 spans two MSVC directory families: Visual Studio 2022 started at 14.3x
+# and is now at 14.4x.  Both are vc143.
+[[toolset]]
+name = "14.3"
+vs_display = "Microsoft Visual Studio 2022 (v143)"
+runner = "local"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = ""
+msvc_versions = ["14.4", "14.3"]
+archs = ["32", "64"]
+install_components = []
+
+[[toolset]]
+name = "14.5"
+vs_display = "Microsoft Visual Studio 2026 (v145)"
+runner = "local"
+vs_version_range = "[18.0,19.0)"
+vcvars_ver = ""
+msvc_versions = ["14.5"]
+archs = ["32", "64"]
+install_components = []
+
+# --------------------------------------------------------- architectures ---
+[arch.32]
+address_model = "32"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x86"
+python_arch = "32"
+
+[arch.64]
+address_model = "64"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x64"
+python_arch = "64"
+
+[arch.arm64]
+address_model = "64"
+architecture = "arm"
+abi = "ms"
+vcvars_target = "arm64"
+python_arch = "arm64"
+
+# -------------------------------------------------------------- variants ---
+[variants]
+variant = ["debug", "release"]
+threading = ["multi"]
+link_combos = [
+    { link = "shared", runtime_link = "shared" },
+    { link = "static", runtime_link = "shared" },
+    { link = "static", runtime_link = "static" },
+]
+
+# ----------------------------------------------------------------- smoke ---
+[smoke]
+enabled = true
+std = "c++14"
+python_extension = true
+required_libs = [
+    "atomic", "bzip2", "charconv", "chrono", "container", "context",
+    "contract", "coroutine", "date_time", "exception", "fiber", "filesystem",
+    "graph", "iostreams", "json", "locale", "log", "log_setup", "math_c99",
+    "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l", "nowide",
+    "prg_exec_monitor", "program_options", "random", "regex", "serialization",
+    "stacktrace_dump", "stacktrace_noop", "test_exec_monitor", "thread",
+    "timer", "type_erasure", "unit_test_framework", "url", "wave",
+    "wserialization", "zlib",
+]
+extra_link_libs = ["charconv"]
+
+[[smoke.conditional_libs]]
+libs = ["python{python_tag}"]
+runtime_link = ["shared"]

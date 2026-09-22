@@ -87,6 +87,16 @@ or override it for one run, from the command line (`--release-version 93
 `BOOSTWIN_RELEASE_TYPE`, ...), which is how the workflow's dispatch inputs get
 in.
 
+[build.vcall.toml](build.vcall.toml) is an alternate configuration for a
+workstation that has Visual Studio 2017, 2019, 2022 and 2026 installed
+side by side as their own products, rather than one Visual Studio with
+older toolsets bolted on as side-by-side components the way the GitHub
+runner images do. Point any command at it with `--config-file`:
+
+```
+python -m boostwin --config-file build.vcall.toml all --jobs 4
+```
+
 
 Commands
 --------
