@@ -151,7 +151,7 @@ link_combos = [
 [smoke]
 enabled = true
 # Build a Boost.Python extension module and import it.  Only attempted where
-# that makes sense (release, shared library, shared runtime).
+# that makes sense (shared library, shared runtime; debug or release).
 python_extension = true
 # A library missing from this list fails the configuration.  Anything else
 # that was staged is reported but not required, so a new Boost library does

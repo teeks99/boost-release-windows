@@ -4,11 +4,14 @@
   Builds smoke/python_ext.cpp into a .pyd against the interpreter
   boostwin.vsproj points BoostIncludeDir/PythonIncludeDir/PythonLibDir at.
 
-  Boost.Python only makes sense for Release|shared|shared: the dependency
-  Python packages carry no debug binaries and only ship release import
-  libraries, so the other ten configurations here will not link. Build
-  Release only, once `boostwin test` (or vsproj.write_props) has generated
-  Release-Win32.props or Release-x64.props for it.
+  Boost.Python only makes sense against a shared library and shared runtime,
+  so build Debug or Release only, once `boostwin test` (or
+  vsproj.write_props) has generated the matching <Configuration>-<Platform>
+  .props for it; the other eight configurations here will not link. Debug
+  still links the release python import library: the dependency Python
+  packages carry no debug binaries, and Boost.Python's wrap_python.hpp hides
+  _DEBUG from Python.h (short of BOOST_DEBUG_PYTHON) so pyconfig.h auto-links
+  the release one, and the release interpreter can import the debug .pyd.
 -->
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
@@ -141,7 +144,7 @@
            was built against the right one. python_ext_test.py adds
            BoostLibDir as a DLL search directory itself (Python 3.8+ does
            not consult PATH for that), so nothing else is needed here. -->
-      <Command>"$(PythonExe)" "$(ProjectDir)..\..\python_ext_test.py" "$(OutDir)" "$(BoostLibDir)"</Command>
+      <Command>"$(PythonExe)" "$(ProjectDir)..\..\python_ext_test.py" "$(OutDir)." "$(BoostLibDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">

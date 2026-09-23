@@ -99,7 +99,10 @@ def _msbuild(workspace, build_config, toolchain, vcxproj, log_name):
 
     work = workspace.work(build_config) / "smoke"
     work.mkdir(parents=True, exist_ok=True)
-    command = [str(msbuild), str(vcxproj), "/nologo",
+    # Always Rebuild: the project's IntDir is shared by every link and
+    # runtime-link combination of a variant, and an incremental build that
+    # skips ClCompile emits no BOOST_LIB_DIAGNOSTIC lines to check.
+    command = [str(msbuild), str(vcxproj), "/nologo", "/t:Rebuild",
                "/p:Configuration=" + configuration,
                "/p:Platform=" + platform]
     completed = subprocess.run(
@@ -199,13 +202,14 @@ def check_compile_and_run(workspace, build_config, toolchain):
 
 
 def python_extension_applies(config, build_config):
-    """Boost.Python only makes sense against a shared release runtime.
+    """Boost.Python only makes sense against a shared library and runtime.
 
-    The dependency Python packages carry no debug binaries, so a debug or
-    static-runtime extension could not be built or loaded anyway.
+    Debug is fine: the dependency Python packages carry no debug binaries,
+    but Boost.Python's wrap_python.hpp hides ``_DEBUG`` from ``Python.h`` so
+    a debug extension still links the release import library, and the
+    release interpreter can load it.
     """
     return (config.smoke.python_extension
-            and build_config.variant == "release"
             and build_config.link == "shared"
             and build_config.runtime_link == "shared")
 
