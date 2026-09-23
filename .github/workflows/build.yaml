@@ -11,8 +11,8 @@ on:
   # matrix and package it, same as a workflow_dispatch with default inputs.
   # Comment them back out again afterwards; workflow_dispatch is the only
   # trigger meant to stay on.
-  # push:
-  #   branches: [master]
+  push:
+    branches: [master, distributed-builds]
   # pull_request:
   workflow_dispatch:
     inputs:
