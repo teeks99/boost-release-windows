@@ -1,29 +1,26 @@
-"""Smoke tests run against the libraries a configuration just staged.
+"""Building and running the smoke programs against a configuration's output.
 
-Three things are checked, in increasing order of how much they prove:
+Two things are checked, both by driving the checked-in Visual Studio project
+for this toolset with msbuild rather than a direct cl.exe invocation --
+closer to how someone consuming these binaries from Visual Studio actually
+builds against them, and it doubles as a check that the project's own
+include/lib paths (via the .props boostwin.vsproj writes) are still correct:
 
-1. inventory  - every staged file is named the way this configuration says
-   it should be, and no required library is missing;
-2. compile    - the checked-in Visual Studio project for this toolset
-   (smoke/vs/msvc-<toolset>/BoostSmoke.vcxproj) builds a program that uses
-   a dozen Boost libraries, linking purely through Boost's auto-linking,
-   and it runs;
-3. python     - a Boost.Python extension module, built the same way
-   through BoostSmokePython.vcxproj, builds and imports.
+1. compile/run - smoke/vs/msvc-<toolset>/BoostSmoke.vcxproj builds a program
+   that uses a dozen Boost libraries, linking purely through Boost's
+   auto-linking, and its post-build step runs it;
+2. python       - BoostSmokePython.vcxproj builds a Boost.Python extension
+   module the same way, and its post-build step imports it.
 
-Building through the checked-in project rather than a direct cl.exe
-invocation is closer to how someone consuming these binaries from Visual
-Studio actually builds against them, and it doubles as a check that the
-project's own include/lib paths (via the .props boostwin.vsproj writes) are
-still correct.
+The third check in a configuration's ``test.json``, inventory, is not here:
+it never touches a compiler, so it lives in :mod:`boostwin.inventory`.
 """
 import json
-import os
 import re
 import subprocess
 from pathlib import Path
 
-from . import vsproj
+from . import inventory, vsproj
 from .util import Timer, log
 
 # libboost_filesystem-vc143-mt-sgd-x64-1_92.lib
@@ -56,127 +53,6 @@ def classify_autolink(lib_dir, names):
         problems.append("no Boost libraries were auto-linked; "
                         "BOOST_LIB_DIAGNOSTIC produced nothing")
     return sorted(set(boost)), sorted(set(system)), problems
-
-
-def parse_library_name(filename):
-    """Split a staged Boost library file name into its parts, or None."""
-    stem, extension = os.path.splitext(filename)
-    if not extension:
-        return None
-    parts = stem.split("-")
-    if len(parts) < 4:
-        return None
-    name = parts[0]
-    for prefix in ("libboost_", "boost_"):
-        if name.startswith(prefix):
-            library = name[len(prefix):]
-            break
-    else:
-        return None
-    return {
-        "file": filename,
-        "library": library,
-        "static_prefix": name.startswith("lib"),
-        "toolset_tag": parts[1],
-        "option_tags": parts[2:-2],
-        "arch_tag": parts[-2],
-        "version_tag": parts[-1],
-        "extension": extension.lstrip("."),
-    }
-
-
-def expected_toolset_tag(build_config):
-    return "vc" + build_config.toolset.name.replace(".", "")
-
-
-def expected_option_tags(build_config):
-    """The ``-mt``/``-gd``/``-s``/``-sgd`` part of a staged file name."""
-    tags = []
-    if build_config.threading == "multi":
-        tags.append("mt")
-    options = ""
-    if build_config.runtime_link == "static":
-        options += "s"
-    if build_config.variant == "debug":
-        options += "gd"
-    if options:
-        tags.append(options)
-    return tags
-
-
-def expected_arch_tag(build_config):
-    letter = "a" if build_config.arch.architecture == "arm" else "x"
-    return letter + build_config.arch.address_model
-
-
-def required_libraries(config, build_config):
-    """Library stems this configuration must produce."""
-    substitutions = {"python_tag": config.deps.python_tag}
-    required = [name.format(**substitutions)
-                for name in config.smoke.required_libs]
-    for entry in config.smoke.conditional_libs:
-        if entry.applies_to(build_config):
-            required += [name.format(**substitutions) for name in entry.libs]
-    return sorted(set(required))
-
-
-def check_inventory(workspace, build_config):
-    """Verify what was staged is named for this configuration and complete."""
-    config = workspace.config
-    lib_dir = workspace.stage_lib(build_config)
-    if not lib_dir.is_dir():
-        return {"name": "inventory", "ok": False,
-                "detail": "nothing was staged in {}".format(lib_dir),
-                "problems": ["the staged directory does not exist"],
-                "libraries": [], "files": 0}
-    files = sorted(p.name for p in lib_dir.iterdir() if p.is_file())
-
-    want_toolset = expected_toolset_tag(build_config)
-    want_options = expected_option_tags(build_config)
-    want_arch = expected_arch_tag(build_config)
-
-    found = set()
-    problems = []
-    unparsed = []
-    for filename in files:
-        if filename in ("DEPENDENCY_VERSIONS.txt",):
-            continue
-        parsed = parse_library_name(filename)
-        if parsed is None:
-            unparsed.append(filename)
-            continue
-        found.add(parsed["library"])
-        if parsed["toolset_tag"] != want_toolset:
-            problems.append("{}: toolset tag {}, expected {}".format(
-                filename, parsed["toolset_tag"], want_toolset))
-        if parsed["option_tags"] != want_options:
-            problems.append("{}: option tags {}, expected {}".format(
-                filename, "-".join(parsed["option_tags"]) or "(none)",
-                "-".join(want_options) or "(none)"))
-        if parsed["arch_tag"] != want_arch:
-            problems.append("{}: arch tag {}, expected {}".format(
-                filename, parsed["arch_tag"], want_arch))
-
-    required = required_libraries(config, build_config)
-    missing = [name for name in required if name not in found]
-    if missing:
-        problems.append("missing libraries: " + ", ".join(missing))
-    if unparsed:
-        problems.append("unrecognised file names: " + ", ".join(unparsed))
-    if not found:
-        problems.append("no Boost libraries were staged at all")
-
-    detail = "{} files, {} libraries".format(len(files), len(found))
-    for problem in problems:
-        log("  inventory: " + problem)
-    return {
-        "name": "inventory",
-        "ok": not problems,
-        "detail": detail,
-        "problems": problems,
-        "libraries": sorted(found),
-        "files": len(files),
-    }
 
 
 def extra_link_libraries(lib_dir, stems):
@@ -377,8 +253,7 @@ def test(workspace, build_config, toolchain):
     config = workspace.config
     results = []
     with Timer("test " + build_config.id):
-        inventory = check_inventory(workspace, build_config)
-        results.append(inventory)
+        results.append(inventory.check_inventory(workspace, build_config))
 
         compile_result, run_result = check_compile_and_run(
             workspace, build_config, toolchain)

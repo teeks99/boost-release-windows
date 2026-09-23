@@ -6,7 +6,7 @@ machine, including the Linux box a release is usually prepared from.
 import json
 from pathlib import Path
 
-from boostwin import smoke
+from boostwin import inventory, smoke
 
 # Libraries Boost only ever builds as static, even for link=shared.
 STATIC_ONLY = ("exception", "test_exec_monitor")
@@ -14,14 +14,14 @@ STATIC_ONLY = ("exception", "test_exec_monitor")
 
 def staged_file_names(config, build_config):
     """The file names a real build of this configuration would stage."""
-    tags = [smoke.expected_toolset_tag(build_config)]
-    tags += smoke.expected_option_tags(build_config)
-    tags.append(smoke.expected_arch_tag(build_config))
+    tags = [inventory.expected_toolset_tag(build_config)]
+    tags += inventory.expected_option_tags(build_config)
+    tags.append(inventory.expected_arch_tag(build_config))
     tags.append("1_" + config.release.version)
     tag = "-".join(tags)
 
     names = []
-    for library in smoke.required_libraries(config, build_config):
+    for library in inventory.required_libraries(config, build_config):
         if build_config.link == "shared" and library not in STATIC_ONLY:
             names.append("boost_{}-{}.lib".format(library, tag))
             names.append("boost_{}-{}.dll".format(library, tag))
@@ -61,7 +61,7 @@ def write(root, config, configs=None, ok=True):
         }))
         checks = [
             {"name": "inventory", "ok": ok, "detail": "",
-             "libraries": smoke.required_libraries(config, build_config)},
+             "libraries": inventory.required_libraries(config, build_config)},
             {"name": "compile", "ok": ok, "detail": ""},
             {"name": "run", "ok": ok, "detail": ""},
         ]

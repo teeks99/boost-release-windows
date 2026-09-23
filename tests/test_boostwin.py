@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 from boostwin import config as config_module
-from boostwin import cli, msvc, package, paths, smoke, vsproj
+from boostwin import cli, inventory, msvc, package, paths, smoke, vsproj
 
 from . import fixture
 
@@ -95,7 +95,7 @@ class ConfigTests(unittest.TestCase):
 
 class LibraryNameTests(unittest.TestCase):
     def test_parses_a_versioned_layout_name(self):
-        parsed = smoke.parse_library_name(
+        parsed = inventory.parse_library_name(
             "libboost_filesystem-vc143-mt-sgd-x64-1_92.lib")
         self.assertEqual(parsed["library"], "filesystem")
         self.assertEqual(parsed["toolset_tag"], "vc143")
@@ -103,8 +103,9 @@ class LibraryNameTests(unittest.TestCase):
         self.assertEqual(parsed["arch_tag"], "x64")
 
     def test_rejects_names_that_are_not_boost_libraries(self):
-        self.assertIsNone(smoke.parse_library_name("DEPENDENCY_VERSIONS.txt"))
-        self.assertIsNone(smoke.parse_library_name("zlib.lib"))
+        self.assertIsNone(
+            inventory.parse_library_name("DEPENDENCY_VERSIONS.txt"))
+        self.assertIsNone(inventory.parse_library_name("zlib.lib"))
 
     def test_expected_tags_cover_every_variant(self):
         config = load()
@@ -117,7 +118,7 @@ class LibraryNameTests(unittest.TestCase):
         seen = set()
         for build_config in config.matrix():
             key = (build_config.variant, build_config.runtime_link)
-            self.assertEqual(smoke.expected_option_tags(build_config),
+            self.assertEqual(inventory.expected_option_tags(build_config),
                              ["mt"] + wanted[key])
             seen.add(key)
         self.assertEqual(seen, set(wanted))
@@ -126,13 +127,13 @@ class LibraryNameTests(unittest.TestCase):
         config = load()
         sixty_four = [c for c in config.matrix()
                       if c.arch.key == "64" and c.toolset.name == "14.3"][0]
-        self.assertEqual(smoke.expected_arch_tag(sixty_four), "x64")
+        self.assertEqual(inventory.expected_arch_tag(sixty_four), "x64")
 
         arm_config = type(sixty_four)(
             toolset=sixty_four.toolset, arch=config.archs["arm64"],
             variant="release", threading="multi", link="static",
             runtime_link="shared")
-        self.assertEqual(smoke.expected_arch_tag(arm_config), "a64")
+        self.assertEqual(inventory.expected_arch_tag(arm_config), "a64")
         self.assertEqual(arm_config.lib_dir, "libarm64-msvc-14.3")
         self.assertIn("architecture=arm", arm_config.b2_properties)
         self.assertIn("address-model=64", arm_config.b2_properties)
@@ -143,9 +144,10 @@ class LibraryNameTests(unittest.TestCase):
                           if c.runtime_link == "shared"][0]
         static_runtime = [c for c in config.matrix()
                           if c.runtime_link == "static"][0]
-        self.assertIn("python314", smoke.required_libraries(config, shared_runtime))
+        self.assertIn("python314",
+                      inventory.required_libraries(config, shared_runtime))
         self.assertNotIn("python314",
-                         smoke.required_libraries(config, static_runtime))
+                         inventory.required_libraries(config, static_runtime))
 
 
 class VsProjTests(unittest.TestCase):
@@ -497,7 +499,7 @@ class InventoryTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_a_complete_staging_directory_passes(self):
-        result = smoke.check_inventory(self.workspace, self.build_config)
+        result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertTrue(result["ok"], result.get("problems"))
         self.assertIn("filesystem", result["libraries"])
 
@@ -505,7 +507,7 @@ class InventoryTests(unittest.TestCase):
         lib_dir = self.workspace.stage_lib(self.build_config)
         for path in lib_dir.glob("*boost_thread-*"):
             path.unlink()
-        result = smoke.check_inventory(self.workspace, self.build_config)
+        result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
         self.assertTrue(any("thread" in problem
                             for problem in result["problems"]))
@@ -514,7 +516,7 @@ class InventoryTests(unittest.TestCase):
         lib_dir = self.workspace.stage_lib(self.build_config)
         # A release file that has strayed into the debug staging directory.
         (lib_dir / "libboost_thread-vc143-mt-s-x64-1_93.lib").write_text("x")
-        result = smoke.check_inventory(self.workspace, self.build_config)
+        result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
         self.assertTrue(any("option tags" in problem
                             for problem in result["problems"]))
@@ -522,7 +524,7 @@ class InventoryTests(unittest.TestCase):
     def test_a_file_from_the_wrong_toolset_fails(self):
         lib_dir = self.workspace.stage_lib(self.build_config)
         (lib_dir / "libboost_thread-vc142-mt-sgd-x64-1_93.lib").write_text("x")
-        result = smoke.check_inventory(self.workspace, self.build_config)
+        result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
         self.assertTrue(any("toolset tag" in problem
                             for problem in result["problems"]))
@@ -531,7 +533,7 @@ class InventoryTests(unittest.TestCase):
         lib_dir = self.workspace.stage_lib(self.build_config)
         for path in lib_dir.iterdir():
             path.unlink()
-        result = smoke.check_inventory(self.workspace, self.build_config)
+        result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
 
 
