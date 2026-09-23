@@ -4,9 +4,18 @@ Three things are checked, in increasing order of how much they prove:
 
 1. inventory  - every staged file is named the way this configuration says
    it should be, and no required library is missing;
-2. compile    - a program that uses a dozen Boost libraries compiles, links
-   purely through Boost's auto-linking, and runs;
-3. python     - a Boost.Python extension module builds and imports.
+2. compile    - the checked-in Visual Studio project for this toolset
+   (smoke/vs/msvc-<toolset>/BoostSmoke.vcxproj) builds a program that uses
+   a dozen Boost libraries, linking purely through Boost's auto-linking,
+   and it runs;
+3. python     - a Boost.Python extension module, built the same way
+   through BoostSmokePython.vcxproj, builds and imports.
+
+Building through the checked-in project rather than a direct cl.exe
+invocation is closer to how someone consuming these binaries from Visual
+Studio actually builds against them, and it doubles as a check that the
+project's own include/lib paths (via the .props boostwin.vsproj writes) are
+still correct.
 """
 import json
 import os
@@ -14,6 +23,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from . import vsproj
 from .util import Timer, log
 
 # libboost_filesystem-vc143-mt-sgd-x64-1_92.lib
@@ -191,52 +201,60 @@ def extra_link_libraries(lib_dir, stems):
     return resolved, problems
 
 
-def _runtime_flag(build_config):
-    static_runtime = build_config.runtime_link == "static"
-    debug = build_config.variant == "debug"
-    if static_runtime:
-        return "/MTd" if debug else "/MT"
-    return "/MDd" if debug else "/MD"
+# The error msbuild reports for a PostBuildEvent (or any other <Exec>-based
+# build step) that exited non-zero.  BoostSmoke.vcxproj and
+# BoostSmokePython.vcxproj both run the program they just built as their
+# post-build step, so this is what tells "it failed to build" apart from
+# "it built, but running it failed" without a second process of our own.
+_POST_BUILD_FAILED = re.compile(r"\bMSB3073\b")
 
 
-def _compile_flags(workspace, build_config):
-    config = workspace.config
-    flags = [
-        "/nologo", "/EHsc", "/W3", "/bigobj",
-        "/std:" + config.smoke.std, "/Zc:__cplusplus",
-        "/D_CRT_SECURE_NO_WARNINGS",
-        # boost/iostreams/filter/bzip2.hpp derives a dll-interface class from
-        # std::ios_base::failure, which is benign and warns every time.
-        "/wd4275",
-        # Makes the compiler print every library auto-linking asks for, which
-        # is what turns this into a naming check as well as a link check.
-        "/DBOOST_LIB_DIAGNOSTIC",
-        _runtime_flag(build_config),
-    ]
-    if build_config.variant == "debug":
-        flags += ["/Od", "/Zi", "/DDEBUG"]
-    else:
-        flags += ["/O2", "/DNDEBUG"]
-    if build_config.link == "shared":
-        flags.append("/DBOOST_ALL_DYN_LINK")
-    return flags
+def _msbuild(workspace, build_config, toolchain, vcxproj, log_name):
+    """Run msbuild against ``vcxproj`` for this configuration.
 
+    Verbosity is left at the default (normal) rather than turned down:
+    both the BOOST_LIB_DIAGNOSTIC `#pragma message` lines and the smoke
+    program's own output, echoed by the post-build step, need to survive
+    in what gets captured. Returns ``(captured_output, returncode)``.
+    """
+    msbuild = vsproj.find_msbuild(toolchain.info["vs_path"])
+    configuration = vsproj.configuration_name(build_config)
+    platform = vsproj.platform_name(build_config)
 
-def _run_environment(workspace, build_config, toolchain, extra_path=()):
-    env = dict(toolchain.env)
-    paths = [str(workspace.stage_lib(build_config))]
-    paths += [str(p) for p in extra_path]
-    env["PATH"] = os.pathsep.join(paths + [env.get("PATH", "")])
-    return env
+    work = workspace.work(build_config) / "smoke"
+    work.mkdir(parents=True, exist_ok=True)
+    command = [str(msbuild), str(vcxproj), "/nologo",
+               "/p:Configuration=" + configuration,
+               "/p:Platform=" + platform]
+    completed = subprocess.run(
+        command, cwd=str(vcxproj.parent), env=toolchain.env,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    output = completed.stdout.decode("utf-8", errors="replace")
+    print(output, flush=True)
+    (work / log_name).write_text(output, encoding="utf-8")
+    return output, completed.returncode
 
 
 def check_compile_and_run(workspace, build_config, toolchain):
-    """Build and run the smoke program against the staged libraries."""
+    """Build and run the smoke program through the checked-in VS project.
+
+    Both happen inside one msbuild invocation: BoostSmoke.vcxproj runs the
+    program itself, as a post-build step, once it links successfully.
+    Nothing here names a library file except the few `extra_link_libs`
+    Boost does not auto-link, so a successful build is itself the check
+    that library naming and this build variant agree; it is compiled with
+    BOOST_LIB_DIAGNOSTIC, so msbuild's own captured output can be scanned
+    for every name the compiler asked for.
+
+    Returns ``(compile_result, run_result)``; ``run_result`` is ``None``
+    when the build never got far enough to run anything.
+    """
     config = workspace.config
-    sources = config.root / "smoke"
-    work = workspace.work(build_config) / "smoke"
-    work.mkdir(parents=True, exist_ok=True)
-    executable = work / "boost_smoke.exe"
+    if not vsproj.has_project(config, build_config):
+        return {"name": "compile", "ok": False,
+                "detail": "no Visual Studio project checked in for "
+                          "msvc-{}; add one under smoke/vs/".format(
+                              build_config.toolset.name)}, None
 
     lib_dir = workspace.stage_lib(build_config)
     extra, extra_problems = extra_link_libraries(
@@ -249,28 +267,18 @@ def check_compile_and_run(workspace, build_config, toolchain):
                           "missing",
                 "problems": extra_problems}, None
 
-    command = [str(toolchain.cl)] + _compile_flags(workspace, build_config) + [
-        "/I" + str(workspace.source),
-        "/Fo" + str(work) + os.sep,
-        "/Fd" + str(work / "boost_smoke.pdb"),
-        "/Fe" + str(executable),
-        str(sources / "smoke.cpp"),
-        "/link",
-        "/LIBPATH:" + str(lib_dir),
-    ] + [str(path) for path in extra]
-    completed = subprocess.run(
-        command, cwd=str(work), env=toolchain.env,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = completed.stdout.decode("utf-8", errors="replace")
-    print(output, flush=True)
-    (work / "compile.log").write_text(output, encoding="utf-8")
+    vsproj.write_props(workspace, build_config)
+    output, returncode = _msbuild(
+        workspace, build_config, toolchain,
+        vsproj.vcxproj_path(config, build_config.toolset), "compile.log")
 
     requested = sorted(set(AUTOLINK_LINE.findall(output)))
-    if completed.returncode != 0:
+    post_build_failed = bool(_POST_BUILD_FAILED.search(output))
+    if returncode != 0 and not post_build_failed:
         return {
             "name": "compile",
             "ok": False,
-            "detail": "cl exited with {}".format(completed.returncode),
+            "detail": "msbuild exited with {}".format(returncode),
             "autolink": requested,
         }, None
 
@@ -288,33 +296,30 @@ def check_compile_and_run(workspace, build_config, toolchain):
             "problems": problems,
             "autolink": boost,
             "system_libraries": system,
-        }, executable
+        }, None
+
+    if not vsproj.output_exe(config, build_config).exists():
+        return {"name": "compile", "ok": False,
+                "detail": "msbuild succeeded but the executable was not "
+                          "produced",
+                "autolink": boost, "system_libraries": system}, None
 
     log(detail)
-    return {
+    compile_result = {
         "name": "compile",
         "ok": True,
         "detail": detail,
         "autolink": boost,
         "system_libraries": system,
-    }, executable
-
-
-def check_run(workspace, build_config, toolchain, executable):
-    env = _run_environment(workspace, build_config, toolchain)
-    work = executable.parent
-    completed = subprocess.run(
-        [str(executable)], cwd=str(work), env=env,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = completed.stdout.decode("utf-8", errors="replace")
-    print(output, flush=True)
-    (work / "run.log").write_text(output, encoding="utf-8")
-    return {
-        "name": "run",
-        "ok": completed.returncode == 0,
-        "detail": "exit code {}".format(completed.returncode),
-        "output": output.splitlines()[-1] if output.strip() else "",
     }
+    run_result = {
+        "name": "run",
+        "ok": not post_build_failed,
+        "detail": "ran as the project's post-build step" if not post_build_failed
+        else "the smoke program exited with a non-zero status; see "
+             "compile.log",
+    }
+    return compile_result, run_result
 
 
 def python_extension_applies(config, build_config):
@@ -330,52 +335,41 @@ def python_extension_applies(config, build_config):
 
 
 def check_python_extension(workspace, build_config, toolchain):
+    """Build and import the Boost.Python extension via the checked-in project.
+
+    Both happen inside one msbuild invocation: BoostSmokePython.vcxproj's
+    post-build step imports the module with the matching interpreter and
+    exercises it, which is the only way to tell that boost_python was
+    actually built against the right interpreter -- a library that merely
+    exists in the staged directory can still be unusable.
+    """
     config = workspace.config
     python_root = workspace.python_root(build_config.arch)
-    interpreter = python_root / "python.exe"
-    if not interpreter.exists():
+    if not (python_root / "python.exe").exists():
         return {"name": "python", "ok": True, "skipped": True,
-                "detail": "no interpreter at {}".format(interpreter)}
-
-    sources = config.root / "smoke"
-    work = workspace.work(build_config) / "python"
-    work.mkdir(parents=True, exist_ok=True)
-    module = work / "boost_smoke_ext.pyd"
-
-    command = [str(toolchain.cl)] + _compile_flags(workspace, build_config) + [
-        "/LD",
-        "/I" + str(workspace.source),
-        "/I" + str(python_root / "include"),
-        "/Fo" + str(work) + os.sep,
-        "/Fd" + str(work / "boost_smoke_ext.pdb"),
-        "/Fe" + str(module),
-        str(sources / "python_ext.cpp"),
-        "/link",
-        "/LIBPATH:" + str(workspace.stage_lib(build_config)),
-        "/LIBPATH:" + str(python_root / "libs"),
-    ]
-    completed = subprocess.run(
-        command, cwd=str(work), env=toolchain.env,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = completed.stdout.decode("utf-8", errors="replace")
-    print(output, flush=True)
-    if completed.returncode != 0:
+                "detail": "no interpreter at {}".format(
+                    python_root / "python.exe")}
+    if not vsproj.has_project(config, build_config):
         return {"name": "python", "ok": False,
-                "detail": "building the extension failed with {}".format(
-                    completed.returncode)}
+                "detail": "no Visual Studio project checked in for "
+                          "msvc-{}; add one under smoke/vs/".format(
+                              build_config.toolset.name)}
 
-    env = _run_environment(workspace, build_config, toolchain,
-                           extra_path=[python_root])
-    completed = subprocess.run(
-        [str(interpreter), str(sources / "python_ext_test.py"), str(work),
-         str(workspace.stage_lib(build_config))],
-        cwd=str(work), env=env,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    output = completed.stdout.decode("utf-8", errors="replace")
-    print(output, flush=True)
-    return {"name": "python", "ok": completed.returncode == 0,
-            "detail": output.strip().splitlines()[-1] if output.strip()
-            else "exit code {}".format(completed.returncode)}
+    vsproj.write_props(workspace, build_config)
+    output, returncode = _msbuild(
+        workspace, build_config, toolchain,
+        vsproj.python_vcxproj_path(config, build_config.toolset),
+        "python-compile.log")
+    if returncode == 0:
+        return {"name": "python", "ok": True,
+                "detail": "built and imported successfully"}
+    if _POST_BUILD_FAILED.search(output):
+        return {"name": "python", "ok": False,
+                "detail": "the extension failed to import; see "
+                          "python-compile.log"}
+    return {"name": "python", "ok": False,
+            "detail": "building the extension failed with {}".format(
+                returncode)}
 
 
 def test(workspace, build_config, toolchain):
@@ -386,13 +380,11 @@ def test(workspace, build_config, toolchain):
         inventory = check_inventory(workspace, build_config)
         results.append(inventory)
 
-        compile_result, executable = check_compile_and_run(
+        compile_result, run_result = check_compile_and_run(
             workspace, build_config, toolchain)
         results.append(compile_result)
-
-        if compile_result["ok"] and executable is not None:
-            results.append(check_run(workspace, build_config, toolchain,
-                                     executable))
+        if run_result is not None:
+            results.append(run_result)
 
         if python_extension_applies(config, build_config):
             results.append(check_python_extension(

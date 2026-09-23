@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 from boostwin import config as config_module
-from boostwin import cli, msvc, package, paths, smoke
+from boostwin import cli, msvc, package, paths, smoke, vsproj
 
 from . import fixture
 
@@ -146,6 +146,81 @@ class LibraryNameTests(unittest.TestCase):
         self.assertIn("python314", smoke.required_libraries(config, shared_runtime))
         self.assertNotIn("python314",
                          smoke.required_libraries(config, static_runtime))
+
+
+class VsProjTests(unittest.TestCase):
+    """The checked-in smoke/vs/msvc-<toolset> projects and their .props."""
+
+    def test_every_toolset_has_a_checked_in_project(self):
+        # Otherwise `test` would silently skip the msbuild checks for a
+        # toolset build.toml still lists.
+        config = load()
+        for toolset in config.toolsets:
+            self.assertIn(toolset.name, vsproj.PLATFORM_TOOLSET,
+                          "msvc-{} has no PlatformToolset mapping".format(
+                              toolset.name))
+            for path in (vsproj.solution_path(config, toolset),
+                        vsproj.vcxproj_path(config, toolset),
+                        vsproj.python_vcxproj_path(config, toolset)):
+                self.assertTrue(path.is_file(), path)
+
+    def test_configuration_name_covers_every_link_combination(self):
+        config = load()
+        expected = {
+            ("debug", "shared", "shared"): "Debug",
+            ("debug", "static", "shared"): "Debug-Static",
+            ("debug", "static", "static"): "Debug-StaticRuntime",
+            ("release", "shared", "shared"): "Release",
+            ("release", "static", "shared"): "Release-Static",
+            ("release", "static", "static"): "Release-StaticRuntime",
+        }
+        seen = set()
+        for build_config in config.matrix():
+            key = (build_config.variant, build_config.link,
+                  build_config.runtime_link)
+            self.assertEqual(vsproj.configuration_name(build_config),
+                             expected[key])
+            seen.add(key)
+        self.assertEqual(seen, set(expected))
+
+    def test_platform_name_matches_architecture(self):
+        config = load()
+        for build_config in config.matrix():
+            expected = "Win32" if build_config.arch.key == "32" else "x64"
+            self.assertEqual(vsproj.platform_name(build_config), expected)
+
+    def test_props_path_is_named_after_configuration_and_platform(self):
+        config = load()
+        build_config = [c for c in config.matrix()
+                       if c.id == "msvc-14.3-64-debug-static-static"][0]
+        path = vsproj.props_path(config, build_config)
+        self.assertEqual(path.name, "Debug-StaticRuntime-x64.props")
+        self.assertEqual(path.parent.name, "generated")
+
+    def test_write_props_fills_in_the_staged_paths(self):
+        # write_props necessarily writes next to the checked-in vcxproj
+        # (smoke/vs/msvc-.../generated/), not under the sandboxed workspace
+        # root, since that is the only path a static vcxproj can Import --
+        # so this cleans up after itself instead of leaving it behind.
+        config = load()
+        build_config = [c for c in config.matrix()
+                       if c.id == "msvc-14.3-64-release-shared-shared"][0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fixture.write(root, config, [build_config])
+            workspace = paths.Workspace(root, config)
+            path = vsproj.write_props(workspace, build_config)
+            self.addCleanup(path.unlink, missing_ok=True)
+            text = path.read_text(encoding="utf-8")
+        self.assertIn("<BoostIncludeDir>", text)
+        self.assertIn(str(workspace.source).replace("/", "\\"), text)
+        self.assertIn(str(workspace.stage_lib(build_config)).replace(
+            "/", "\\"), text)
+        # boost_charconv has to be linked explicitly; fixture.write stages
+        # it under its required-library name, so it should be resolved here
+        # too, the same way check_compile_and_run resolves it.
+        self.assertIn("<BoostExtraLibs>", text)
+        self.assertIn("charconv", text)
 
 
 def run_cli(*argv):

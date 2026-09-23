@@ -87,14 +87,14 @@ or override it for one run, from the command line (`--release-version 93
 `BOOSTWIN_RELEASE_TYPE`, ...), which is how the workflow's dispatch inputs get
 in.
 
-[build.vcall.toml](build.vcall.toml) is an alternate configuration for a
+[build.vsall.toml](build.vsall.toml) is an alternate configuration for a
 workstation that has Visual Studio 2017, 2019, 2022 and 2026 installed
 side by side as their own products, rather than one Visual Studio with
 older toolsets bolted on as side-by-side components the way the GitHub
 runner images do. Point any command at it with `--config-file`:
 
 ```
-python -m boostwin --config-file build.vcall.toml all --jobs 4
+python -m boostwin --config-file build.vsall.toml all --jobs 4
 ```
 
 
@@ -197,13 +197,15 @@ Run per configuration, against the libraries that configuration just staged:
 1.  **inventory** — every staged file is named for this exact configuration
     (`vc143`, `mt`, `sgd`, `x64` and so on), and no required library is
     missing. The required list is `[smoke].required_libs` in `build.toml`.
-2.  **compile** — [smoke/smoke.cpp](smoke/smoke.cpp) uses about fifteen Boost
-    libraries and names none of them: everything is pulled in by Boost's
-    auto-linking. It is compiled with `BOOST_LIB_DIAGNOSTIC`, and every Boost
-    name the compiler asks for must be a file that was actually staged. That
-    is the check that library naming and the build variant agree. Libraries
-    from the Windows SDK are reported but not required -- Boost.Atomic
-    auto-links `synchronization.lib` for `WaitOnAddress`.
+2.  **compile** — the checked-in Visual Studio project for this toolset
+    (`smoke/vs/msvc-<toolset>/BoostSmoke.vcxproj`, built with `msbuild`; see
+    below) builds [smoke/smoke.cpp](smoke/smoke.cpp), which uses about
+    fifteen Boost libraries and names none of them: everything is pulled in
+    by Boost's auto-linking. It is compiled with `BOOST_LIB_DIAGNOSTIC`, and
+    every Boost name the compiler asks for must be a file that was actually
+    staged. That is the check that library naming and the build variant
+    agree. Libraries from the Windows SDK are reported but not required --
+    Boost.Atomic auto-links `synchronization.lib` for `WaitOnAddress`.
 
     `[smoke].extra_link_libs` names the few libraries Boost fails to
     auto-link. Boost.JSON's compiled code calls `boost::charconv::to_chars`
@@ -214,15 +216,54 @@ Run per configuration, against the libraries that configuration just staged:
 3.  **run** — the program runs and its checks pass, which exercises threads,
     filesystem, serialization and a zlib and bzip2 round trip through
     Boost.Iostreams (so the bundled zlib and bzip2 really did get built in).
-4.  **python** — a Boost.Python extension module is built and imported with the
-    matching interpreter. Only for release / shared / shared, since the
-    dependency Python packages carry no debug binaries. The staged directory
-    is handed to `os.add_dll_directory`, because Python 3.8 and later do not
-    use `PATH` to resolve an extension module's DLLs -- which is what a user
-    of these binaries has to do too.
+    This happens inside the same `msbuild` invocation as **compile**:
+    `BoostSmoke.vcxproj` runs the program itself as a post-build step, so
+    boostwin never launches it directly. A non-zero exit there is msbuild
+    error `MSB3073`, which is how `boostwin.smoke` tells "it failed to
+    build" apart from "it built, but running it failed" without spawning a
+    process of its own.
+4.  **python** — `BoostSmokePython.vcxproj` builds a Boost.Python extension
+    module, and its own post-build step imports it with the matching
+    interpreter and exercises it -- again inside one `msbuild` invocation,
+    the same way. Only for release / shared / shared, since the dependency
+    Python packages carry no debug binaries. [smoke/python_ext_test.py](smoke/python_ext_test.py)
+    hands the staged directory to `os.add_dll_directory` itself, because
+    Python 3.8 and later do not use `PATH` to resolve an extension module's
+    DLLs -- which is what a user of these binaries has to do too.
 
 `package` also cross-checks the configurations against each other: all six
 variants of a compiler and architecture should contain the same libraries.
+
+
+### The Visual Studio projects
+
+[smoke/vs/](smoke/vs/) has a real `.sln` for every toolset in `build.toml` --
+`msvc-14.1/BoostSmoke.sln`, `msvc-14.2/...`, and so on -- each with a
+`BoostSmoke.vcxproj` (builds and runs [smoke/smoke.cpp](smoke/smoke.cpp)) and
+a `BoostSmokePython.vcxproj` (builds and imports
+[smoke/python_ext.cpp](smoke/python_ext.cpp)). `boostwin test` drives them
+with `msbuild` for the **compile**/**run**/**python** checks above and reads
+the result out of msbuild's own output -- there is no separate `cl.exe` path,
+and boostwin never runs the built `.exe`/`.pyd` itself; the project's own
+post-build step does. They can also be opened directly in their own Visual
+Studio, or in a newer one -- Visual Studio 2026 can open all four, offering
+to retarget the platform toolset for whichever ones it does not have
+installed.
+
+Each project has twelve configurations, `Debug`/`Release` crossed with the
+three link/runtime-link combinations Boost supports (plain, `-Static`,
+`-StaticRuntime`), times `Win32`/`x64`. None of that is enough on its own,
+though: the projects do not know where a build staged its libraries. That
+comes from a `.props` file under each project's `generated/` folder, named
+after the `Configuration|Platform` it belongs to (e.g.
+`generated/Release-x64.props`), which `boostwin.vsproj.write_props` writes on
+every `boostwin test` run for whichever configuration it just tested. Opening
+a project before that has happened once will build (and its post-build step
+will fail to run) with no Boost include or library path; build (or `test`)
+that configuration from the command line first, or hand-write a
+`generated/<Configuration>-<Platform>.props` with
+`BoostIncludeDir`/`BoostLibDir` (and, for the Python project,
+`PythonIncludeDir`/`PythonLibDir`/`PythonExe`) set yourself.
 
 
 GitHub Actions

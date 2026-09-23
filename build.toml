@@ -145,9 +145,11 @@ link_combos = [
 ]
 
 # ----------------------------------------------------------------- smoke ---
+# `compile` and `python` build through the checked-in Visual Studio project
+# for each toolset, under smoke/vs/msvc-<toolset>/ -- see boostwin/vsproj.py
+# and boostwin/smoke.py.
 [smoke]
 enabled = true
-std = "c++14"
 # Build a Boost.Python extension module and import it.  Only attempted where
 # that makes sense (release, shared library, shared runtime).
 python_extension = true

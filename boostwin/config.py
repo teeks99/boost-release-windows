@@ -268,7 +268,6 @@ class SmokeOptions:
     conditional_libs: tuple = ()
     extra_link_libs: tuple = ()
     python_extension: bool = True
-    std: str = "c++14"
 
 
 @dataclass
@@ -428,7 +427,6 @@ def load(path=None, overrides=None):
         conditional_libs=conditional_libs,
         extra_link_libs=tuple(smoke_table.get("extra_link_libs", ())),
         python_extension=bool(smoke_table.get("python_extension", True)),
-        std=smoke_table.get("std", "c++14"),
     )
 
     archs = {}

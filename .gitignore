@@ -2,3 +2,12 @@ __pycache__/
 *.pyc
 # Default local build root when one is not configured.
 /_build/
+
+# Visual Studio smoke test projects (smoke/vs/msvc-*/): the .sln/.vcxproj
+# files are checked in, everything boostwin.vsproj or Visual Studio itself
+# writes around them is not.
+smoke/vs/*/generated/*.props
+smoke/vs/*/Win32/
+smoke/vs/*/x64/
+.vs/
+*.vcxproj.user
