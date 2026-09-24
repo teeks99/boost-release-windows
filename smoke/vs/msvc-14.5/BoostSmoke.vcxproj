@@ -249,6 +249,18 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <!-- Windows on ARM64 has no fcontext assembly, so Boost.Context's own
+       Jamfile forces <context-impl>winfib there, which carries
+       -DBOOST_USE_WINFIB.  boost/context/fiber.hpp does no auto-detection:
+       without the same macro a consumer gets the fcontext implementation and
+       fails to link against the arm64 libraries on make_fcontext.  Anyone
+       using these binaries has to define it too, so the smoke build defines
+       it the same way rather than smoke.cpp hiding the requirement. -->
+  <ItemDefinitionGroup Condition="'$(Platform)'=='ARM64'">
+    <ClCompile>
+      <PreprocessorDefinitions>BOOST_USE_WINFIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\smoke.cpp" />
   </ItemGroup>

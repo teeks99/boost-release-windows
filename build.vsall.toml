@@ -134,16 +134,28 @@ enabled = true
 python_extension = true
 required_libs = [
     "atomic", "bzip2", "charconv", "chrono", "container", "context",
-    "contract", "coroutine", "date_time", "exception", "fiber", "filesystem",
-    "graph", "iostreams", "json", "locale", "log", "log_setup", "math_c99",
-    "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l", "nowide",
-    "prg_exec_monitor", "program_options", "random", "regex", "serialization",
-    "stacktrace_dump", "stacktrace_noop", "test_exec_monitor", "thread",
-    "timer", "type_erasure", "unit_test_framework", "url", "wave",
-    "wserialization", "zlib",
+    "contract", "date_time", "exception", "filesystem", "graph",
+    "iostreams", "json", "locale", "log", "log_setup", "math_c99",
+    "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l",
+    "nowide", "prg_exec_monitor", "program_options", "random", "regex",
+    "serialization", "stacktrace_dump", "stacktrace_noop",
+    "test_exec_monitor", "thread", "timer", "type_erasure",
+    "unit_test_framework", "url", "wave", "wserialization", "zlib",
 ]
 extra_link_libs = ["charconv"]
 
 [[smoke.conditional_libs]]
 libs = ["python{python_tag}"]
 runtime_link = ["shared"]
+
+# Boost.Coroutine and Boost.Fiber are not built for Windows on ARM64, and
+# that is upstream's doing rather than something to fix here.  There is no
+# fcontext assembly for arm64/pe, so Boost.Context's own Jamfile forces
+# <context-impl>winfib (which carries -DBOOST_USE_WINFIB) for that target --
+# but it forces it only on itself.  Coroutine and Fiber are built without
+# that define, compile against the fcontext interface, and then fail to link
+# against the winfib boost_context.  Coroutine could not work either way: it
+# uses context::detail::fcontext_t directly.
+[[smoke.conditional_libs]]
+libs = ["coroutine", "fiber"]
+arch = ["32", "64"]

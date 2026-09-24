@@ -239,6 +239,40 @@ configuration in the matrix has one, so an architecture added to
 `build.toml` and not to the projects fails before CI starts.
 
 
+### Boost.Context on arm64, and what it costs
+
+Two things about the arm64 binaries come from Boost itself rather than from
+anything here, and both are worth knowing before you use them.
+
+**Boost.Context is the winfib build.** There is no fcontext assembly for
+arm64/pe, so Boost.Context's own Jamfile forces `<context-impl>winfib` on
+Windows ARM64, and that composes to `-DBOOST_USE_WINFIB`. Nothing
+auto-detects it: `boost/context/fiber.hpp` selects `fiber_fcontext.hpp`
+unless a consumer defines the same macro. So **code using Boost.Context from
+the arm64 binaries has to be compiled with `BOOST_USE_WINFIB` defined**, or
+it will fail to link on `make_fcontext`. The smoke project defines it for its
+`ARM64` configurations rather than hiding the requirement in `smoke.cpp`,
+which makes the smoke test prove the rule holds.
+
+**Boost.Coroutine and Boost.Fiber are not in the arm64 zip.** Boost.Context
+forces winfib only on itself; both of those libraries are then built without
+`BOOST_USE_WINFIB`, compile against the fcontext interface, and fail to link
+against the winfib `boost_context`. Coroutine could not work either way -- it
+uses `context::detail::fcontext_t` directly. They are declared as conditional
+libraries instead of required ones, so an arm64 configuration is not failed
+for them:
+
+```toml
+[[smoke.conditional_libs]]
+libs = ["coroutine", "fiber"]
+arch = ["32", "64"]
+```
+
+That is narrow on purpose. `package`'s cross-check between configurations
+still reports anything *else* that goes missing from arm64 but built
+everywhere else, so this does not turn into a blanket exemption.
+
+
 The smoke tests
 ---------------
 
@@ -246,7 +280,11 @@ Run per configuration, against the libraries that configuration just staged:
 
 1.  **inventory** — every staged file is named for this exact configuration
     (`vc143`, `mt`, `sgd`, `x64` and so on), and no required library is
-    missing. The required list is `[smoke].required_libs` in `build.toml`.
+    missing. The required list is `[smoke].required_libs` in `build.toml`,
+    plus any `[[smoke.conditional_libs]]` entry that applies -- those are
+    filtered by `variant`, `link`, `runtime_link` and `arch`, which is how
+    Boost.Python is expected only against a shared runtime and
+    Boost.Coroutine and Boost.Fiber only off arm64.
 2.  **compile** — the checked-in Visual Studio project for this toolset
     (`smoke/vs/msvc-<toolset>/BoostSmoke.vcxproj`, built with `msbuild`; see
     below) builds [smoke/smoke.cpp](smoke/smoke.cpp), which uses about

@@ -211,17 +211,31 @@ def _inventory_libraries(record):
     return set()
 
 
-def _compare_group(label, configs):
+def unexpected_libraries(config, build_config):
+    """Libraries ``build.toml`` says this configuration should not have.
+
+    Boost.Python is absent from the static-runtime variants, and
+    Boost.Coroutine and Boost.Fiber from arm64.  Both are declared in
+    ``[smoke].conditional_libs``, so neither is evidence that something
+    stopped building -- while a library nobody declared going missing from
+    one configuration still is.
+    """
+    substitutions = {"python_tag": config.deps.python_tag}
+    names = set()
+    for entry in config.smoke.conditional_libs:
+        if not entry.applies_to(build_config):
+            names.update(name.format(**substitutions) for name in entry.libs)
+    return names
+
+
+def _compare_group(label, configs, excluded):
     """Report libraries present in some members of a group but not others."""
     problems = []
     union = set()
     for libraries in configs.values():
         union |= libraries
     for config_id, libraries in sorted(configs.items()):
-        # Boost.Python is deliberately absent from the static-runtime
-        # variants, so it is never evidence of an inconsistency.
-        missing = {name for name in union - libraries
-                   if not name.startswith("python")}
+        missing = union - libraries - excluded.get(config_id, frozenset())
         if missing:
             problems.append("{} ({}): missing {}".format(
                 config_id, label, ", ".join(sorted(missing))))
@@ -236,9 +250,13 @@ def check_consistency(workspace, stages_root):
     say, the static-runtime debug build, and comparing the same variant across
     compilers catches one that stopped building for a single toolset.
     """
+    config = workspace.config
+    known = {build_config.id: build_config
+             for build_config in config.matrix()}
     tests = load_json_meta(stages_root, "test.json")
     by_target = {}
     by_variant = {}
+    excluded = {}
     for record in tests:
         config_id = record.get("config")
         libraries = _inventory_libraries(record)
@@ -247,12 +265,15 @@ def check_consistency(workspace, stages_root):
                                     record.get("runtime_link"))
         by_target.setdefault(target, {})[config_id] = libraries
         by_variant.setdefault(variant, {})[config_id] = libraries
+        build_config = known.get(config_id)
+        if build_config is not None:
+            excluded[config_id] = unexpected_libraries(config, build_config)
 
     problems = []
     for label, configs in sorted(by_target.items()):
-        problems += _compare_group(label, configs)
+        problems += _compare_group(label, configs, excluded)
     for label, configs in sorted(by_variant.items()):
-        problems += _compare_group(label, configs)
+        problems += _compare_group(label, configs, excluded)
 
     for problem in sorted(set(problems)):
         log("warning: inconsistent libraries -- " + problem)

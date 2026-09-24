@@ -265,17 +265,28 @@ class BuildOptions:
 
 @dataclass
 class ConditionalLibs:
-    """Libraries that are only expected for some build configurations."""
+    """Libraries that are only expected for some build configurations.
+
+    An empty filter means "every value".  ``arch`` is the architecture key,
+    so an entry can say a library exists for 32 and 64 bit but not arm64.
+    """
 
     libs: tuple
     variant: tuple = ()
     link: tuple = ()
     runtime_link: tuple = ()
+    arch: tuple = ()
 
-    def applies_to(self, config):
-        for attribute in ("variant", "link", "runtime_link"):
+    def applies_to(self, build_config):
+        values = {
+            "variant": build_config.variant,
+            "link": build_config.link,
+            "runtime_link": build_config.runtime_link,
+            "arch": build_config.arch.key,
+        }
+        for attribute, value in values.items():
             allowed = getattr(self, attribute)
-            if allowed and getattr(config, attribute) not in allowed:
+            if allowed and value not in allowed:
                 return False
         return True
 
@@ -437,6 +448,7 @@ def load(path=None, overrides=None):
             variant=tuple(entry.get("variant", ())),
             link=tuple(entry.get("link", ())),
             runtime_link=tuple(entry.get("runtime_link", ())),
+            arch=tuple(str(a) for a in entry.get("arch", ())),
         )
         for entry in smoke_table.get("conditional_libs", ())
     )

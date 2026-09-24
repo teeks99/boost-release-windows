@@ -181,6 +181,37 @@ class LibraryNameTests(unittest.TestCase):
         self.assertNotIn("python314",
                          inventory.required_libraries(config, static_runtime))
 
+    def test_coroutine_and_fiber_are_not_required_on_arm64(self):
+        # Neither builds for Windows on ARM64: Boost.Context is forced to its
+        # winfib implementation there and the two libraries are built against
+        # the fcontext interface anyway, so they fail to link.  Requiring them
+        # would fail every arm64 configuration for something upstream does.
+        config = load()
+        for build_config in config.matrix():
+            required = inventory.required_libraries(config, build_config)
+            for name in ("coroutine", "fiber"):
+                self.assertEqual(build_config.arch.key != "arm64",
+                                 name in required,
+                                 "{} in {}".format(name, build_config.id))
+            # ...and nothing else was lost along the way.
+            self.assertIn("context", required)
+            self.assertIn("thread", required)
+
+    def test_an_arch_filter_is_the_only_new_conditional_dimension(self):
+        # The filters are matched by name against a BuildConfig, and arch is
+        # the one that is not a plain string on it.
+        config = load()
+        entry = config_module.ConditionalLibs(libs=("example",),
+                                              arch=("arm64",))
+        arm = [c for c in config.matrix() if c.arch.key == "arm64"][0]
+        other = [c for c in config.matrix() if c.arch.key == "64"][0]
+        self.assertTrue(entry.applies_to(arm))
+        self.assertFalse(entry.applies_to(other))
+        # An entry with no filters at all still applies everywhere.
+        everywhere = config_module.ConditionalLibs(libs=("example",))
+        self.assertTrue(everywhere.applies_to(arm))
+        self.assertTrue(everywhere.applies_to(other))
+
 
 class VsProjTests(unittest.TestCase):
     """The checked-in smoke/vs/msvc-<toolset> projects and their .props."""
@@ -300,6 +331,21 @@ class VsProjTests(unittest.TestCase):
                                  path)
                 self.assertIn("GetLatestSDKTargetPlatformVersion", text,
                               path)
+
+    def test_the_arm64_smoke_build_matches_the_context_implementation(self):
+        # b2 builds Boost.Context with <context-impl>winfib on Windows ARM64,
+        # which carries -DBOOST_USE_WINFIB.  boost/context/fiber.hpp does no
+        # auto-detection, so without the same macro the smoke program gets
+        # the fcontext implementation and fails to link on make_fcontext --
+        # which is exactly what a consumer of these binaries would hit.
+        config = load()
+        arm = [c for c in config.matrix() if c.arch.key == "arm64"]
+        self.assertTrue(arm, "build.toml no longer builds arm64")
+        for build_config in arm:
+            text = vsproj.vcxproj_path(
+                config, build_config.toolset).read_text(encoding="utf-8")
+            self.assertIn("BOOST_USE_WINFIB", text)
+            self.assertIn("'$(Platform)'=='ARM64'", text)
 
     def test_msbuild_is_told_which_windows_sdk_to_use(self):
         # Same reason: whatever the project asks for, the version vcvarsall
@@ -1069,6 +1115,29 @@ class PackageTests(unittest.TestCase):
         problems = package.check_consistency(self.workspace,
                                              self.workspace.stages)
         self.assertEqual(problems, [])
+
+    def test_coroutine_and_fiber_absent_from_arm64_is_not_a_problem(self):
+        # They are declared conditional in build.toml, so the cross-check
+        # between configurations must not report them on every release.
+        arm = [c for c in self.config.matrix() if c.arch.key == "arm64"][0]
+        self.assertEqual(
+            package.unexpected_libraries(self.config, arm),
+            {"coroutine", "fiber"})
+        problems = package.check_consistency(self.workspace,
+                                             self.workspace.stages)
+        self.assertEqual(problems, [])
+
+    def test_a_library_missing_only_from_arm64_is_still_reported(self):
+        # The point of not requiring coroutine and fiber there is to leave
+        # the check able to say something when arm64 loses anything else.
+        for build_config in self.config.matrix():
+            if build_config.arch.key == "arm64":
+                self._drop_library(build_config.id, "regex")
+        problems = package.check_consistency(self.workspace,
+                                             self.workspace.stages)
+        self.assertTrue(any("regex" in problem and "arm64" in problem
+                            for problem in problems), problems[:5])
+        self.assertFalse(any("coroutine" in problem for problem in problems))
 
 
 if __name__ == "__main__":
