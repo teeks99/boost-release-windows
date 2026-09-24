@@ -38,10 +38,29 @@ class Toolset:
     msvc_versions: tuple
     archs: tuple
     install_components: tuple
+    # ((arch key, runner), ...) for the architectures that cannot build on
+    # `runner`.  A tuple rather than a dict so this stays hashable, like
+    # every other field here.
+    arch_runners: tuple = ()
 
     @property
     def b2_toolset(self):
         return "msvc-" + self.name
+
+    def runner_for(self, arch_key):
+        """Which runner image this toolset builds ``arch_key`` on.
+
+        Everything about a toolset is the same whichever architecture it is
+        targeting except, sometimes, the machine: an arm64 build wants an
+        Arm64 runner, while the same compiler's x86 and x64 builds stay on
+        the x64 one.  Hence a per architecture override rather than a second
+        [[toolset]] entry that would be a copy of the first in every other
+        respect.
+        """
+        for key, runner in self.arch_runners:
+            if key == arch_key:
+                return runner
+        return self.runner
 
 
 @dataclass(frozen=True)
@@ -77,7 +96,7 @@ class BuildConfig:
 
     @property
     def runner(self):
-        return self.toolset.runner
+        return self.toolset.runner_for(self.arch.key)
 
     @property
     def b2_properties(self):
@@ -447,6 +466,18 @@ def load(path=None, overrides=None):
         # directory.  Only v143, which spans 14.3x and 14.4x, needs more.
         msvc_versions = tuple(
             str(v) for v in table.get("msvc_versions", [name])) or (name,)
+        toolset_archs = tuple(
+            str(a) for a in _require(table, "archs", "toolset " + name))
+        arch_runners = tuple(
+            (str(key), str(value))
+            for key, value in table.get("arch_runners", {}).items())
+        # A runner named for an architecture this toolset does not build is
+        # almost certainly a typo, and would otherwise be ignored in silence.
+        for key, _runner in arch_runners:
+            if key not in toolset_archs:
+                fail("toolset {} sets arch_runners for {!r}, which is not "
+                     "one of its archs ({})".format(
+                         name, key, ", ".join(toolset_archs)))
         toolsets.append(Toolset(
             name=name,
             runner=str(_require(table, "runner", "toolset " + name)),
@@ -455,9 +486,9 @@ def load(path=None, overrides=None):
             vs_display=str(table.get("vs_display", "")),
             vcvars_ver=str(table.get("vcvars_ver", "")),
             msvc_versions=msvc_versions,
-            archs=tuple(str(a) for a in _require(
-                table, "archs", "toolset " + name)),
+            archs=toolset_archs,
             install_components=tuple(table.get("install_components", ())),
+            arch_runners=arch_runners,
         ))
 
     variants_table = data.get("variants", {})

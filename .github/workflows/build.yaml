@@ -12,7 +12,7 @@ on:
   # Comment them back out again afterwards; workflow_dispatch is the only
   # trigger meant to stay on.
   push:
-    branches: [master, distributed-builds]
+    branches: ['**']
   # pull_request:
   workflow_dispatch:
     inputs:

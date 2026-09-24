@@ -2,7 +2,7 @@ Boost Windows release builds
 ============================
 
 Builds the official Windows binaries for a Boost release: every supported MSVC
-toolset, both architectures, and every library variant `b2 --build-type=complete`
+toolset, every architecture, and every library variant `b2 --build-type=complete`
 produces on Windows.
 
 The work is split so that **one job builds one configuration** — for example
@@ -13,7 +13,7 @@ matrix on one machine when you want it to.
 
 ```
 python -m boostwin info                     # what is configured
-python -m boostwin matrix                   # the 48 configurations
+python -m boostwin matrix                   # the 54 configurations
 python -m boostwin all --jobs 4             # build all of them here
 python -m boostwin run --id msvc-14.3-64-release-static-shared
 ```
@@ -22,15 +22,18 @@ python -m boostwin run --id msvc-14.3-64-release-static-shared
 $ python -m boostwin info
 ...
 toolsets        : msvc-14.1, msvc-14.2, msvc-14.3, msvc-14.5
-architectures   : 32, 64
+architectures   : 32, 64, arm64
 variants        : debug, release
 link            : shared/shared, static/shared, static/static   (link/runtime-link)
 threading       : multi
-configurations  : 48  (8 toolset+architecture pairs x 2 variants x 3 link combinations)
+configurations  : 54  (9 toolset+architecture pairs x 2 variants x 3 link combinations)
 ```
 
-Which GitHub runner image a toolset builds on is a CI detail, so it stays out
-of both listings; `matrix --runners` shows it when you want it.
+Nine pairs rather than twelve because `arm64` is built by msvc-14.5 alone --
+see [Architectures](#architectures) below.
+
+Which GitHub runner image a configuration builds on is a CI detail, so it
+stays out of both listings; `matrix --runners` shows it when you want it.
 
 
 Requirements
@@ -52,9 +55,9 @@ For `boost_1_93_0`:
 
 | File | Contents |
 | --- | --- |
-| `boost_1_93_0-bin-msvc-14.3-64.zip` | one `lib64-msvc-14.3` directory: the `.lib`, `.dll` and `.pdb` files for that compiler and architecture, plus `DEPENDENCY_VERSIONS.txt`. One zip per compiler/architecture. |
-| `boost_1_93_0-bin-msvc-all-32-64.7z` | the whole tree: Boost's headers and every `libNN-msvc-X.Y` directory. A build of only part of the matrix is named `...-bin-msvc-partial-14.3-64.7z` instead, so it cannot be mistaken for a release. |
-| `boost_1_93_0-32bitlog.txt`, `-64bitlog.txt` | every configuration's b2 output for that architecture, concatenated. |
+| `boost_1_93_0-bin-msvc-14.3-64.zip` | one `lib64-msvc-14.3` directory: the `.lib`, `.dll` and `.pdb` files for that compiler and architecture, plus `DEPENDENCY_VERSIONS.txt`. One zip per compiler/architecture, `...-14.5-arm64.zip` included. |
+| `boost_1_93_0-bin-msvc-all-32-64-arm64.7z` | the whole tree: Boost's headers and every `libNN-msvc-X.Y` directory, arm64's among them. A build of only part of the matrix is named `...-bin-msvc-partial-14.3-64.7z` instead, so it cannot be mistaken for a release. |
+| `boost_1_93_0-32bitlog.txt`, `-64bitlog.txt`, `-arm64bitlog.txt` | every configuration's b2 output for that architecture, concatenated. |
 | `DEPENDENCY_VERSIONS.txt` | generated from the compilers and dependencies the build actually used. |
 | `result_matrix.txt` | generated from the smoke test results. |
 | `SHA256SUMS` | checksums for everything above. |
@@ -91,7 +94,9 @@ in.
 workstation that has Visual Studio 2017, 2019, 2022 and 2026 installed
 side by side as their own products, rather than one Visual Studio with
 older toolsets bolted on as side-by-side components the way the GitHub
-runner images do. Point any command at it with `--config-file`:
+runner images do. It builds 32 and 64 bit only -- an arm64 configuration
+there would have nothing to run its smoke test on. Point any command at it
+with `--config-file`:
 
 ```
 python -m boostwin --config-file build.vsall.toml all --jobs 4
@@ -172,12 +177,13 @@ Studio is not stable -- GitHub moved `windows-latest` and `windows-2025` onto
 the Visual Studio 2026 image in June 2026, leaving `windows-2022` as the only
 label with Visual Studio 2022 -- so the current mapping is:
 
-| toolset | runner | Visual Studio | MSVC |
-| --- | --- | --- | --- |
-| msvc-14.1 | `windows-2022` | 2022 | v141, installed on demand |
-| msvc-14.2 | `windows-2022` | 2022 | v142, side by side |
-| msvc-14.3 | `windows-2022` | 2022 | v143, the default |
-| msvc-14.5 | `windows-2025` | 2026 | v145, the default |
+| toolset | architectures | runner | Visual Studio | MSVC |
+| --- | --- | --- | --- | --- |
+| msvc-14.1 | 32, 64 | `windows-2022` | 2022 | v141, installed on demand |
+| msvc-14.2 | 32, 64 | `windows-2022` | 2022 | v142, side by side |
+| msvc-14.3 | 32, 64 | `windows-2022` | 2022 | v143, the default |
+| msvc-14.5 | 32, 64 | `windows-2025` | 2026 | v145, the default |
+| msvc-14.5 | arm64 | `windows-11-vs2026-arm` | 2026 | v145, the default |
 
 `python -m boostwin toolchain --list` prints every Visual Studio on a machine
 and which toolset each one satisfies, which is the quickest way to check a
@@ -187,6 +193,50 @@ log before anything can fail.
 When `windows-2022` is eventually retired, msvc-14.3 moves to a Visual Studio
 2026 image by setting `vcvars_ver = "14.44"` -- that toolset ships with VS 2026
 as a side-by-side component, and `msvc_versions` will confirm it.
+
+
+Architectures
+-------------
+
+`32` and `64` are built by every toolset. `arm64` is built by **msvc-14.5
+only**: v141, v142 and v143 are there for people still targeting the x86 and
+x64 desktops, and the Arm64 runner images carry Visual Studio 2022 or 2026,
+not the older products.
+
+arm64 is built **natively**, on an Arm64 runner, rather than cross compiled
+from the x64 one. Cross compiling would produce the libraries perfectly well,
+but nothing could then be run: the smoke program and the Boost.Python
+extension are built *and executed* as part of every configuration's test, and
+that is most of what the test is worth. So the one architecture that needs a
+different machine names it, and the rest of the toolset is unchanged:
+
+```toml
+[[toolset]]
+name = "14.5"
+runner = "windows-2025"
+archs = ["32", "64", "arm64"]
+arch_runners = { arm64 = "windows-11-vs2026-arm" }
+```
+
+`windows-11-vs2026-arm` rather than `windows-11-arm` for the same reason
+msvc-14.3 still says `windows-2022`: the plain label carries Visual Studio
+2022 until GitHub moves it, and the explicit one is right either way. If
+`arch_runners` names an architecture the toolset does not build, the config
+is rejected rather than quietly ignored.
+
+Everything downstream follows from the architecture key, so arm64 needs no
+special handling: `--arch arm64` selects it, b2 gets
+`architecture=arm address-model=64`, the libraries stage into
+`libarm64-msvc-14.5` with Boost's own `-a64-` tag, and they ship as
+`...-bin-msvc-14.5-arm64.zip` beside the other per compiler zips and inside
+the same full `.7z`.
+
+The only piece that is not derived is the Visual Studio smoke project: a
+`.vcxproj` has to declare `Configuration|Platform` pairs literally, so
+[smoke/vs/msvc-14.5/](smoke/vs/msvc-14.5/) carries the six `ARM64`
+configurations alongside `Win32` and `x64`. A test checks that every
+configuration in the matrix has one, so an architecture added to
+`build.toml` and not to the projects fails before CI starts.
 
 
 The smoke tests
@@ -250,9 +300,11 @@ Studio, or in a newer one -- Visual Studio 2026 can open all four, offering
 to retarget the platform toolset for whichever ones it does not have
 installed.
 
-Each project has twelve configurations, `Debug`/`Release` crossed with the
-three link/runtime-link combinations Boost supports (plain, `-Static`,
-`-StaticRuntime`), times `Win32`/`x64`. None of that is enough on its own,
+Each project has `Debug`/`Release` crossed with the three link/runtime-link
+combinations Boost supports (plain, `-Static`, `-StaticRuntime`), times the
+platforms its toolset builds: twelve configurations for msvc-14.1 to
+msvc-14.3 (`Win32`/`x64`), eighteen for msvc-14.5, which adds `ARM64`.
+None of that is enough on its own,
 though: the projects do not know where a build staged its libraries. That
 comes from a `.props` file under each project's `generated/` folder, named
 after the `Configuration|Platform` it belongs to (e.g.
@@ -275,8 +327,10 @@ GitHub Actions
 *   **downloads** — fetches the source and dependencies once and uploads them
     as an artifact, so the Boost servers see one download per run rather than
     one per configuration.
-*   **build** — one job per configuration, on the runner image its toolset
-    names. Uploads `stage-<config id>`.
+*   **build** — one job per configuration, on the runner image that
+    configuration names: `runs-on` comes straight out of the matrix, which is
+    how the arm64 jobs land on the Arm64 runner while the rest of msvc-14.5
+    stays on the x64 one. Uploads `stage-<config id>`.
 *   **package** — downloads every stage artifact and assembles the release.
 
 Use **Run workflow** to build a specific release; the inputs map onto the

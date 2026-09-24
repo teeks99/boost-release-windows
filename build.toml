@@ -60,6 +60,13 @@ keep_intermediate = false
 # empty to take that Visual Studio's default and let `msvc_versions` check it.
 # `install_components` are added with the Visual Studio installer when the
 # toolset is not there, which is how v141 gets onto a runner image.
+#
+# `arch_runners` overrides `runner` for one architecture.  Only arm64 needs
+# it: those binaries are built natively on an Arm64 runner, while the same
+# compiler's 32 and 64 bit builds stay on the x64 image.  Everything else
+# about the toolset -- the Visual Studio, the MSVC family, the components --
+# is the same either way, so this is an override rather than a second
+# toolset entry.
 
 [[toolset]]
 name = "14.1"
@@ -93,6 +100,10 @@ msvc_versions = ["14.4", "14.3"]
 archs = ["32", "64"]
 install_components = []
 
+# The only toolset that builds arm64.  `windows-11-vs2026-arm` is named
+# rather than `windows-11-arm` for the same reason 14.3 still says
+# windows-2022: the plain label carries Visual Studio 2022 until GitHub
+# moves it, and the explicit one is right both before and after that.
 [[toolset]]
 name = "14.5"
 vs_display = "Microsoft Visual Studio 2026 (v145)"
@@ -100,7 +111,8 @@ runner = "windows-2025"
 vs_version_range = "[18.0,19.0)"
 vcvars_ver = ""
 msvc_versions = ["14.5"]
-archs = ["32", "64"]
+archs = ["32", "64", "arm64"]
+arch_runners = { arm64 = "windows-11-vs2026-arm" }
 install_components = []
 
 # --------------------------------------------------------- architectures ---
@@ -122,8 +134,9 @@ abi = "ms"
 vcvars_target = "x64"
 python_arch = "64"
 
-# Not referenced by any toolset yet; listed so adding "arm64" to a toolset's
-# `archs` is the only change needed to start building it.
+# Built by msvc-14.5 only: v141, v142 and v143 predate the Arm64 runner
+# images, and the older compilers are there for people still targeting the
+# desktops that Boost's 32 and 64 bit binaries are for.
 [arch.arm64]
 address_model = "64"
 architecture = "arm"

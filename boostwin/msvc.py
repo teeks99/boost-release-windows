@@ -307,19 +307,27 @@ def vcvars_argument(target_token, host=None):
 
 
 # b2 asks the setup script for a cpu using its own vocabulary; map every
-# spelling it can produce onto the right vcvarsall.bat argument.
+# spelling it can produce onto the right vcvarsall.bat argument.  The value
+# is the *target* only -- vcvars_argument adds the host half -- so the
+# cross-compilation spellings all collapse onto the target they name.  The
+# arm64_* ones are what msvc.jam produces when the host itself is Arm64,
+# which is how the arm64 configurations build.
 _B2_CPU_TOKENS = {
     "x86": "x86",
     "amd64": "x64",
     "x64": "x64",
     "x86_amd64": "x64",
     "amd64_x86": "x86",
+    "arm64_x86": "x86",
+    "arm64_amd64": "x64",
     "arm": "arm",
     "arm64": "arm64",
     "x86_arm64": "arm64",
     "amd64_arm64": "arm64",
+    "arm64_arm64": "arm64",
     "x86_arm": "arm",
     "amd64_arm": "arm",
+    "arm64_arm": "arm",
 }
 
 

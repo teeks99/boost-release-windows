@@ -72,7 +72,39 @@ class ConfigTests(unittest.TestCase):
     def test_full_archive_name_follows_the_architectures(self):
         config = load()
         self.assertEqual(config.full_archive_name,
-                         "boost_1_93_0-snapshot-bin-msvc-all-32-64.7z")
+                         "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
+
+    def test_arm64_is_built_by_one_toolset_on_its_own_runner(self):
+        # The Arm64 runner images only carry the newest Visual Studio, and
+        # arm64 is built natively rather than cross compiled, so exactly one
+        # toolset builds it and that one architecture names its own machine.
+        config = load()
+        arm = [c for c in config.matrix() if c.arch.key == "arm64"]
+        self.assertEqual({c.toolset.name for c in arm}, {"14.5"})
+        self.assertEqual(len(arm), len(config.variants)
+                         * len(config.link_combos) * len(config.threadings))
+
+        toolset = config.toolset("14.5")
+        self.assertEqual(toolset.runner_for("arm64"), "windows-11-vs2026-arm")
+        # ...and the same compiler's other architectures are untouched.
+        for arch_key in ("32", "64"):
+            self.assertEqual(toolset.runner_for(arch_key), toolset.runner)
+        self.assertEqual(config.toolset("14.3").runner_for("arm64"),
+                         "windows-2022")
+
+    def test_an_arch_runner_for_an_unbuilt_architecture_is_rejected(self):
+        # Silently ignoring it would leave the build running somewhere the
+        # author did not intend.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "build.toml"
+            path.write_text(BUILD_TOML.read_text(encoding="utf-8").replace(
+                'arch_runners = { arm64 = "windows-11-vs2026-arm" }',
+                'arch_runners = { arm46 = "windows-11-vs2026-arm" }'),
+                encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                config_module.load(path)
+        self.assertIn("arm46", str(raised.exception))
+        self.assertIn("14.5", str(raised.exception))
 
     def test_environment_overrides_are_applied(self):
         os.environ["BOOSTWIN_RELEASE_VERSION"] = "91"
@@ -187,9 +219,34 @@ class VsProjTests(unittest.TestCase):
 
     def test_platform_name_matches_architecture(self):
         config = load()
+        expected = {"32": "Win32", "64": "x64", "arm64": "ARM64"}
+        seen = set()
         for build_config in config.matrix():
-            expected = "Win32" if build_config.arch.key == "32" else "x64"
-            self.assertEqual(vsproj.platform_name(build_config), expected)
+            self.assertEqual(vsproj.platform_name(build_config),
+                             expected[build_config.arch.key])
+            seen.add(build_config.arch.key)
+        self.assertEqual(seen, set(expected))
+
+    def test_every_configuration_has_a_project_configuration_to_build(self):
+        # boostwin drives msbuild with /p:Configuration and /p:Platform, and
+        # an msbuild that is handed a pair the project does not declare
+        # builds something else rather than failing -- so every entry in the
+        # matrix has to be in the checked-in vcxproj.  This is what catches
+        # an architecture added to build.toml but not to the projects.
+        config = load()
+        for build_config in config.matrix():
+            toolset = build_config.toolset
+            wanted = '"{}|{}"'.format(vsproj.configuration_name(build_config),
+                                      vsproj.platform_name(build_config))
+            for path in (vsproj.vcxproj_path(config, toolset),
+                         vsproj.python_vcxproj_path(config, toolset)):
+                # assertTrue rather than assertIn: the latter would put the
+                # whole project file in the failure message.
+                self.assertTrue(
+                    wanted in path.read_text(encoding="utf-8"),
+                    "smoke/vs/msvc-{}/{} declares no {} configuration, "
+                    "which {} needs".format(toolset.name, path.name, wanted,
+                                            build_config.id))
 
     def test_props_path_is_named_after_configuration_and_platform(self):
         config = load()
@@ -283,10 +340,10 @@ class InfoAndMatrixTests(unittest.TestCase):
     def test_info_describes_every_matrix_dimension(self):
         code, output = run_cli("info")
         self.assertEqual(code, 0)
-        for expected in ("toolsets", "msvc-14.1", "architectures", "32, 64",
-                         "variants", "debug, release", "link",
-                         "shared/shared", "static/static", "threading",
-                         "configurations", "48"):
+        for expected in ("toolsets", "msvc-14.1", "architectures",
+                         "32, 64, arm64", "variants", "debug, release",
+                         "link", "shared/shared", "static/static",
+                         "threading", "configurations", "54"):
             self.assertIn(expected, output)
 
     def test_info_does_not_mention_github_runners(self):
@@ -314,6 +371,17 @@ class InfoAndMatrixTests(unittest.TestCase):
         self.assertEqual(code, 0)
         entries = json.loads(output)
         self.assertEqual(entries[0]["runner"], "windows-2025")
+
+    def test_matrix_json_carries_the_per_architecture_runner(self):
+        # runs-on comes straight out of this, so the arm64 jobs landing on
+        # the Arm64 image is the whole mechanism.
+        code, output = run_cli("matrix", "--json", "--id",
+                               "msvc-14.5-arm64-release-static-shared")
+        self.assertEqual(code, 0)
+        entries = json.loads(output)
+        self.assertEqual(entries[0]["runner"], "windows-11-vs2026-arm")
+        self.assertEqual(entries[0]["arch"], "arm64")
+        self.assertEqual(entries[0]["lib_dir"], "libarm64-msvc-14.5")
 
 
 class DocumentedCommandTests(unittest.TestCase):
@@ -398,17 +466,31 @@ class VersionRangeTests(unittest.TestCase):
     }
 
     def test_each_toolset_asks_for_the_visual_studio_its_runner_has(self):
+        # Per configuration rather than per toolset: an arch_runners entry
+        # sends one architecture to a different image, which has to carry a
+        # Visual Studio that satisfies the same range.
         config = load()
-        for toolset in config.toolsets:
+        for build_config in config.matrix():
+            runner = build_config.runner
             self.assertIn(
-                toolset.runner, self.RUNNER_VISUAL_STUDIO,
-                "msvc-{} uses an unknown runner label".format(toolset.name))
-            version = self.RUNNER_VISUAL_STUDIO[toolset.runner]
+                runner, self.RUNNER_VISUAL_STUDIO,
+                "{} uses an unknown runner label".format(build_config.id))
+            version = self.RUNNER_VISUAL_STUDIO[runner]
             self.assertTrue(
-                msvc.version_in_range(version, toolset.vs_version_range),
-                "msvc-{} runs on {}, which has Visual Studio {}, but asks "
-                "for {}".format(toolset.name, toolset.runner, version,
-                                toolset.vs_version_range))
+                msvc.version_in_range(
+                    version, build_config.toolset.vs_version_range),
+                "{} runs on {}, which has Visual Studio {}, but asks for "
+                "{}".format(build_config.id, runner, version,
+                            build_config.toolset.vs_version_range))
+
+    def test_arm64_builds_on_an_arm_runner(self):
+        # Native, not cross compiled: b2, the smoke program and the
+        # Boost.Python extension all run on the machine that built them.
+        config = load()
+        for build_config in config.matrix():
+            self.assertEqual(build_config.arch.key == "arm64",
+                             build_config.runner.endswith("-arm"),
+                             build_config.id)
 
     def test_every_configured_toolset_range_is_understood(self):
         config = load()
@@ -792,7 +874,7 @@ class PackageTests(unittest.TestCase):
     def test_a_complete_build_keeps_the_established_archive_name(self):
         lib_dirs = sorted({c.lib_dir for c in self.config.matrix()})
         self.assertEqual(package.full_archive_name(self.config, lib_dirs),
-                         "boost_1_93_0-snapshot-bin-msvc-all-32-64.7z")
+                         "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
         self.assertEqual(package.missing_lib_dirs(self.config, lib_dirs), [])
 
     def test_a_partial_build_is_named_partial(self):
@@ -802,7 +884,7 @@ class PackageTests(unittest.TestCase):
             name, "boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z")
         self.assertNotIn("all", name)
         self.assertEqual(len(package.missing_lib_dirs(
-            self.config, ["lib64-msvc-14.3"])), 7)
+            self.config, ["lib64-msvc-14.3"])), 8)
 
     def test_a_missing_architecture_is_still_partial(self):
         lib_dirs = sorted(c.lib_dir for c in self.config.matrix()
@@ -843,11 +925,52 @@ class PackageTests(unittest.TestCase):
         self.assertIn("result_matrix.txt", names)
         self.assertIn("boost_1_93_0-snapshot-32bitlog.txt", names)
         self.assertIn("boost_1_93_0-snapshot-64bitlog.txt", names)
+        self.assertIn("boost_1_93_0-snapshot-arm64bitlog.txt", names)
         for toolset in ("14.1", "14.2", "14.3", "14.5"):
             for arch in ("32", "64"):
                 self.assertIn(
                     "boost_1_93_0-snapshot-bin-msvc-{}-{}.zip".format(
                         toolset, arch), names)
+        # arm64 ships the same way as the rest: its own per compiler zip,
+        # and its libraries inside the one .7z with everything else.
+        self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.5-arm64.zip", names)
+
+    def test_the_arm64_zip_holds_arm64_libraries(self):
+        # Same zip layout as the x86 and x64 ones, with Boost's own a64 tag
+        # instead of x86/x64 in the file names.
+        package.package(self.workspace, full=False, checksums=False)
+        target = self.workspace.out / \
+            "boost_1_93_0-snapshot-bin-msvc-14.5-arm64.zip"
+        with zipfile.ZipFile(target) as archive:
+            entries = [name for name in archive.namelist()
+                       if not name.endswith("/")]
+        self.assertTrue(entries)
+        self.assertTrue(all(name.startswith("libarm64-msvc-14.5/")
+                            for name in entries), entries[:5])
+        self.assertIn("libarm64-msvc-14.5/DEPENDENCY_VERSIONS.txt", entries)
+        for tag in ("-mt-a64-", "-mt-gd-a64-", "-mt-s-a64-", "-mt-sgd-a64-"):
+            self.assertTrue(any(tag in name for name in entries), tag)
+        self.assertFalse(any("-x64-" in name for name in entries))
+
+    def test_the_full_archive_holds_every_architecture(self):
+        # "bundle arm64 in the same 7z" -- the everything archive is the
+        # source tree with every libNN-msvc-X.Y directory merged into it.
+        lib_dirs = package.merge_into_source(self.workspace,
+                                             self.workspace.stages)
+        self.assertIn("libarm64-msvc-14.5", lib_dirs)
+        self.assertIn("lib32-msvc-14.1", lib_dirs)
+        self.assertIn("lib64-msvc-14.5", lib_dirs)
+        self.assertEqual(
+            package.full_archive_name(self.config, lib_dirs),
+            "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
+
+    def test_a_missing_arm64_build_makes_the_archive_partial(self):
+        lib_dirs = sorted({c.lib_dir for c in self.config.matrix()
+                           if c.arch.key != "arm64"})
+        self.assertIn("partial",
+                      package.full_archive_name(self.config, lib_dirs))
+        self.assertEqual(package.missing_lib_dirs(self.config, lib_dirs),
+                         ["libarm64-msvc-14.5"])
 
     def test_a_per_configuration_zip_holds_one_library_directory(self):
         package.package(self.workspace, full=False, checksums=False)

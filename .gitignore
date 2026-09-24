@@ -9,5 +9,6 @@ __pycache__/
 smoke/vs/*/generated/*.props
 smoke/vs/*/Win32/
 smoke/vs/*/x64/
+smoke/vs/*/ARM64/
 .vs/
 *.vcxproj.user

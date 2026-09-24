@@ -17,6 +17,7 @@ checks alongside the existing ones.
 """
 from pathlib import Path
 
+from .msvc import host_arch
 from .util import fail
 
 # PlatformToolset token MSBuild expects for each toolset. Kept separate from
@@ -28,7 +29,7 @@ PLATFORM_TOOLSET = {
     "14.5": "v145",
 }
 
-PLATFORM_NAME = {"32": "Win32", "64": "x64"}
+PLATFORM_NAME = {"32": "Win32", "64": "x64", "arm64": "ARM64"}
 
 # Suffix the checked-in vcxproj files use for each link/runtime-link
 # combination, appended to the capitalised variant name -- must match
@@ -164,10 +165,20 @@ def write_props(workspace, build_config):
     return path
 
 
+# MSBuild ships one build per host architecture in its own subdirectory of
+# Bin, with the 32 bit x86 one at the top.  Taking the host's own first is
+# what keeps an Arm64 runner off the emulated x64 copy: that one works, but
+# it runs the whole smoke build through emulation.
+_MSBUILD_HOST_DIR = {"amd64": "amd64", "arm64": "arm64"}
+
+
 def find_msbuild(install_path):
     """Locate MSBuild.exe inside a Visual Studio installation."""
     base = Path(install_path) / "MSBuild" / "Current" / "Bin"
-    for candidate in (base / "amd64" / "MSBuild.exe", base / "MSBuild.exe"):
+    host = _MSBUILD_HOST_DIR.get(host_arch(), "amd64")
+    for candidate in (base / host / "MSBuild.exe",
+                      base / "amd64" / "MSBuild.exe",
+                      base / "MSBuild.exe"):
         if candidate.exists():
             return candidate
     fail("MSBuild.exe not found under {}".format(base))
