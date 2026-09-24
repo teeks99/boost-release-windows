@@ -88,7 +88,7 @@ def cmd_info(workspace, args):
     print("link            : {}   (link/runtime-link)".format(
         ", ".join("{}/{}".format(combo.link, combo.runtime_link)
                   for combo in config.link_combos)))
-    print("threading       : {}".format(", ".join(config.threadings)))
+    print("threading       : {}".format(config_module.BuildConfig.threading))
     print("configurations  : {}  ({})".format(
         len(config.matrix()), _matrix_breakdown(config)))
     print()
@@ -105,8 +105,6 @@ def _matrix_breakdown(config):
     parts = ["{} toolset+architecture pairs".format(pairs),
              "{} variants".format(len(config.variants)),
              "{} link combinations".format(len(config.link_combos))]
-    if len(config.threadings) > 1:
-        parts.append("{} threading models".format(len(config.threadings)))
     return " x ".join(parts)
 
 

@@ -150,7 +150,6 @@ python_arch = "arm64"
 # is rejected by Boost itself, so it is not listed.
 [variants]
 variant = ["debug", "release"]
-threading = ["multi"]
 link_combos = [
     { link = "shared", runtime_link = "shared" },
     { link = "static", runtime_link = "shared" },

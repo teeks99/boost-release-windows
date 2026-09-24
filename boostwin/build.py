@@ -17,6 +17,19 @@ def b2_command(workspace, build_config, jobs=None):
         "--user-config=" + workspace.user_config(build_config).as_posix(),
         "--build-dir=" + workspace.build_dir(build_config).as_posix(),
         "--stage-libdir=" + workspace.stage_lib(build_config).as_posix(),
+        # b2 names every intermediate directory after the whole property
+        # set -- msvc-14.5/release/address-model-64/architecture-arm/
+        # link-static/runtime-link-static/threadapi-win32/threading-multi,
+        # 116 characters before the file name.  `architecture` only appears
+        # when it is not the default, so an arm64 build runs 32 characters
+        # longer than the same x64 one, and with a static runtime that took
+        # the longest response file past Windows' 260 character MAX_PATH:
+        # lib.exe failed with LNK1104, b2 carried on, and the library was
+        # simply absent from the release.  --hash replaces that path with an
+        # MD5 of itself, which costs readable bin.v2 directory names and
+        # buys back about 80 characters.  The staged output is unaffected --
+        # --stage-libdir above says where that goes.
+        "--hash",
         "--build-type=" + config.build.build_type,
         "--layout=" + config.build.layout,
         "--debug-configuration",

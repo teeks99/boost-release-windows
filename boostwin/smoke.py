@@ -77,6 +77,19 @@ def extra_link_libraries(lib_dir, stems):
     return resolved, problems
 
 
+# link.exe when a file on the link line is not there.  Worth picking out:
+# when it is one of ours, the build never staged it, and saying only
+# "msbuild exited with 1" sends the next person to look at the smoke
+# project instead of at the b2 log, where the real failure is.
+_MISSING_LIB = re.compile(r"LNK1104: cannot open file '([^']+)'")
+
+
+def missing_link_libraries(output):
+    """Boost libraries msbuild's output says the linker could not open."""
+    return sorted({name for name in _MISSING_LIB.findall(output)
+                   if re.match(r"^(lib)?boost_", name)})
+
+
 # The error msbuild reports for a PostBuildEvent (or any other <Exec>-based
 # build step) that exited non-zero.  BoostSmoke.vcxproj and
 # BoostSmokePython.vcxproj both run the program they just built as their
@@ -165,12 +178,26 @@ def check_compile_and_run(workspace, build_config, toolchain):
     requested = sorted(set(AUTOLINK_LINE.findall(output)))
     post_build_failed = bool(_POST_BUILD_FAILED.search(output))
     if returncode != 0 and not post_build_failed:
-        return {
+        # A Boost library the linker could not open was never staged, so
+        # this is the build failing, not the smoke project.  The inventory
+        # check says the same thing; saying it here too keeps the result
+        # matrix from pointing in the wrong direction.
+        unstaged = missing_link_libraries(output)
+        result = {
             "name": "compile",
             "ok": False,
             "detail": "msbuild exited with {}".format(returncode),
             "autolink": requested,
-        }, None
+        }
+        if unstaged:
+            result["detail"] = "the build did not stage " + ", ".join(unstaged)
+            result["problems"] = [
+                "{} was on the link line but is not in {}; see this "
+                "configuration's build log".format(name, lib_dir)
+                for name in unstaged]
+            for problem in result["problems"]:
+                log("  link: " + problem)
+        return result, None
 
     boost, system, problems = classify_autolink(lib_dir, requested)
     detail = "{} Boost libraries auto-linked".format(len(boost))

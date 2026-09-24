@@ -121,7 +121,6 @@ python_arch = "arm64"
 # -------------------------------------------------------------- variants ---
 [variants]
 variant = ["debug", "release"]
-threading = ["multi"]
 link_combos = [
     { link = "shared", runtime_link = "shared" },
     { link = "static", runtime_link = "shared" },

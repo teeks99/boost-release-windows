@@ -45,18 +45,13 @@ def expected_toolset_tag(build_config):
 
 
 def expected_option_tags(build_config):
-    """The ``-mt``/``-gd``/``-s``/``-sgd`` part of a staged file name."""
-    tags = []
-    if build_config.threading == "multi":
-        tags.append("mt")
-    options = ""
-    if build_config.runtime_link == "static":
-        options += "s"
-    if build_config.variant == "debug":
-        options += "gd"
-    if options:
-        tags.append(options)
-    return tags
+    """The ``-mt``/``-gd``/``-s``/``-sgd`` part of a staged file name.
+
+    One definition, on the configuration itself, because the work directory
+    is named with the same tag -- so what this checks against the staged
+    files and what that directory is called cannot drift apart.
+    """
+    return list(build_config.option_tags)
 
 
 def expected_arch_tag(build_config):

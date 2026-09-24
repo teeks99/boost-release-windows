@@ -32,8 +32,7 @@ class ConfigTests(unittest.TestCase):
         config = load()
         matrix = config.matrix()
         expected = sum(len(t.archs) for t in config.toolsets) \
-            * len(config.variants) * len(config.threadings) \
-            * len(config.link_combos)
+            * len(config.variants) * len(config.link_combos)
         self.assertEqual(len(matrix), expected)
         self.assertEqual(len({c.id for c in matrix}), len(matrix))
 
@@ -48,6 +47,86 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("toolset=msvc-14.3", build_config.b2_properties)
         self.assertIn("address-model=64", build_config.b2_properties)
         self.assertIn("runtime-link=shared", build_config.b2_properties)
+
+    def test_short_ids_name_exactly_one_configuration_each(self):
+        # The work tree is named with short_id, so a spelling that collapsed
+        # two configurations would have them building on top of each other.
+        # b2's ABI tag alone would: it carries runtime-link and variant but
+        # not link, which is why link_tag is in there too.
+        config = load()
+        matrix = config.matrix()
+        self.assertEqual(len({c.short_id for c in matrix}), len(matrix))
+        for build_config in matrix:
+            self.assertLess(len(build_config.short_id), len(build_config.id))
+
+    def test_short_id_spells_the_variant_the_way_b2_does(self):
+        # So a work directory reads like the file names staged beside it.
+        config = load()
+        expected = {
+            "msvc-14.5-arm64-release-static-static": "msvc-14.5-arm64-lib-s",
+            "msvc-14.5-arm64-debug-static-static": "msvc-14.5-arm64-lib-sgd",
+            "msvc-14.5-arm64-release-shared-shared": "msvc-14.5-arm64-dll",
+            "msvc-14.3-64-debug-shared-shared": "msvc-14.3-64-dll-gd",
+        }
+        found = {c.id: c.short_id for c in config.matrix()
+                 if c.id in expected}
+        self.assertEqual(found, expected)
+
+    def test_the_abi_tag_is_the_one_the_staged_files_carry(self):
+        # inventory checks staged file names against the same tag, so what
+        # the work directory is called and what the check enforces cannot
+        # drift apart.
+        config = load()
+        for build_config in config.matrix():
+            self.assertEqual(
+                inventory.expected_option_tags(build_config),
+                ["mt"] + ([build_config.abi_tag] if build_config.abi_tag
+                          else []))
+            if build_config.abi_tag:
+                self.assertTrue(
+                    build_config.short_id.endswith("-" + build_config.abi_tag),
+                    build_config.short_id)
+            # `lib` is b2's own prefix for a static library; an import
+            # library has none, which a directory name cannot express.
+            self.assertEqual(build_config.link_tag,
+                             "lib" if build_config.link == "static" else "dll")
+
+    def test_the_work_directory_drops_mt_but_the_staged_files_keep_it(self):
+        # Every configuration is multithreaded, so `mt` distinguishes
+        # nothing in a directory name -- but it is b2 that names the files,
+        # so the inventory check still has to expect it there.
+        config = load()
+        for build_config in config.matrix():
+            self.assertNotIn("-mt", build_config.short_id)
+            self.assertEqual(build_config.option_tags[0], "mt")
+            self.assertIn("threading=multi", build_config.b2_properties)
+
+    def test_two_configurations_cannot_share_a_work_directory(self):
+        # short_id leaves out what is constant across the matrix, so a
+        # build.toml that made one of those vary has to be refused rather
+        # than left to build two configurations on top of each other.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "build.toml"
+            path.write_text(BUILD_TOML.read_text(encoding="utf-8").replace(
+                'variant = ["debug", "release"]',
+                'variant = ["debug", "release", "profile"]'),
+                encoding="utf-8")
+            with self.assertRaises(SystemExit) as raised:
+                config_module.load(path)
+        message = str(raised.exception)
+        self.assertIn("work directory", message)
+        self.assertIn("profile", message)
+
+    def test_short_id_keeps_the_parts_that_identify_a_machine(self):
+        # Toolset and architecture stay verbatim: they are what tells you
+        # which compiler a work directory belongs to, and they are what
+        # --toolset and --arch take.
+        config = load()
+        for build_config in config.matrix():
+            self.assertTrue(build_config.short_id.startswith(
+                "msvc-{}-{}-".format(build_config.toolset.name,
+                                     build_config.arch.key)),
+                build_config.short_id)
 
     def test_release_naming_matches_the_published_layout(self):
         snapshot = load(version="93", minor_version="0",
@@ -69,10 +148,15 @@ class ConfigTests(unittest.TestCase):
                     beta="1", rc="1")
         self.assertEqual(beta.release.release_name, "boost_1_92_0_b1")
 
-    def test_full_archive_name_follows_the_architectures(self):
+    def test_the_full_archive_is_named_all_and_nothing_else(self):
+        # It holds every compiler and every architecture, so it says so
+        # once.  Listing them would date the name the next time one is
+        # added -- which is exactly what arm64 did.
         config = load()
         self.assertEqual(config.full_archive_name,
-                         "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
+                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
+        for arch_key in config.arch_keys:
+            self.assertNotIn(arch_key, config.full_archive_name)
 
     def test_arm64_is_built_by_one_toolset_on_its_own_runner(self):
         # The Arm64 runner images only carry the newest Visual Studio, and
@@ -81,8 +165,8 @@ class ConfigTests(unittest.TestCase):
         config = load()
         arm = [c for c in config.matrix() if c.arch.key == "arm64"]
         self.assertEqual({c.toolset.name for c in arm}, {"14.5"})
-        self.assertEqual(len(arm), len(config.variants)
-                         * len(config.link_combos) * len(config.threadings))
+        self.assertEqual(len(arm),
+                         len(config.variants) * len(config.link_combos))
 
         toolset = config.toolset("14.5")
         self.assertEqual(toolset.runner_for("arm64"), "windows-11-vs2026-arm")
@@ -163,8 +247,7 @@ class LibraryNameTests(unittest.TestCase):
 
         arm_config = type(sixty_four)(
             toolset=sixty_four.toolset, arch=config.archs["arm64"],
-            variant="release", threading="multi", link="static",
-            runtime_link="shared")
+            variant="release", link="static", runtime_link="shared")
         self.assertEqual(inventory.expected_arch_tag(arm_config), "a64")
         self.assertEqual(arm_config.lib_dir, "libarm64-msvc-14.3")
         self.assertIn("architecture=arm", arm_config.b2_properties)
@@ -372,6 +455,52 @@ class VsProjTests(unittest.TestCase):
         self.assertIn("/p:WindowsTargetPlatformVersion=10.0.22621.0", command)
 
 
+class B2CommandTests(unittest.TestCase):
+    """How boostwin drives b2 for one configuration."""
+
+    def commands(self):
+        config = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = paths.Workspace(Path(tmp), config)
+            for build_config in config.matrix():
+                yield build_config, cli.build_module.b2_command(
+                    workspace, build_config)
+
+    def test_the_work_tree_is_short_and_the_stage_tree_is_not(self):
+        # Two different jobs: the work tree holds b2's own paths, which run
+        # close to MAX_PATH, and nothing reads it back by name.  The stage
+        # tree is what CI artifacts and `package` match on, so it keeps the
+        # full configuration id.
+        config = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = paths.Workspace(Path(tmp), config)
+            for build_config in config.matrix():
+                self.assertEqual(workspace.work(build_config).name,
+                                 build_config.short_id)
+                self.assertEqual(workspace.stage(build_config).name,
+                                 build_config.id)
+
+    def test_target_paths_are_hashed(self):
+        # b2 names every intermediate directory after the full property set,
+        # which is 116 characters before the file name.  architecture-arm is
+        # 32 of those and only appears for arm64, which took an arm64
+        # static-runtime build's longest response file past Windows' 260
+        # character MAX_PATH: lib.exe failed with LNK1104, b2 carried on, and
+        # boost_serialization, boost_wserialization, boost_type_erasure and
+        # boost_python314 were simply absent from the staged output.
+        for build_config, command in self.commands():
+            self.assertIn("--hash", command, build_config.id)
+
+    def test_hashing_does_not_move_the_staged_output(self):
+        # --hash only renames what is under --build-dir.  Where the
+        # libraries land is named explicitly, and packaging depends on it.
+        for build_config, command in self.commands():
+            staged = [a for a in command if a.startswith("--stage-libdir=")]
+            self.assertEqual(len(staged), 1, build_config.id)
+            self.assertTrue(staged[0].endswith("/" + build_config.lib_dir),
+                            staged[0])
+
+
 def run_cli(*argv):
     """Run a boostwin command against this repo's build.toml, capturing output."""
     buffer = io.StringIO()
@@ -434,7 +563,8 @@ class DocumentedCommandTests(unittest.TestCase):
     """Every command line the docs show has to be one the tool accepts."""
 
     COMMAND = re.compile(r"python3? -m boostwin ([^\n#`]*)")
-    SOURCES = ("README.md", "build.toml", ".github/workflows/build.yaml")
+    SOURCES = ("README.md", "CONTRIBUTING.md", "build.toml",
+               ".github/workflows/build.yaml")
 
     def documented_commands(self):
         for name in self.SOURCES:
@@ -815,6 +945,25 @@ class ExtraLinkTests(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("boost_charconv", problems[0])
 
+    def test_a_library_the_linker_could_not_open_is_named(self):
+        # Two checks fail for one cause when a library does not build:
+        # inventory says it is missing, and the smoke link cannot open it.
+        # The compile check has to say which, or the result matrix points at
+        # the smoke project instead of at the build.
+        output = (
+            "  Linking to lib file: libboost_serialization-vc145-mt-s-a64-1_93.lib\n"
+            "LINK : fatal error LNK1104: cannot open file "
+            "'libboost_serialization-vc145-mt-s-a64-1_93.lib' [BoostSmoke.vcxproj]\n")
+        self.assertEqual(
+            smoke.missing_link_libraries(output),
+            ["libboost_serialization-vc145-mt-s-a64-1_93.lib"])
+
+    def test_a_missing_system_library_is_not_blamed_on_the_build(self):
+        # Only Boost names mean "this configuration did not stage it".
+        output = ("LINK : fatal error LNK1104: cannot open file "
+                  "'python314.lib'\n")
+        self.assertEqual(smoke.missing_link_libraries(output), [])
+
     def test_nothing_configured_asks_for_nothing(self):
         self.assertEqual(smoke.extra_link_libraries(self.lib_dir, []),
                          ([], []))
@@ -920,11 +1069,14 @@ class PackageTests(unittest.TestCase):
     def test_a_complete_build_keeps_the_established_archive_name(self):
         lib_dirs = sorted({c.lib_dir for c in self.config.matrix()})
         self.assertEqual(package.full_archive_name(self.config, lib_dirs),
-                         "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
+                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
         self.assertEqual(package.missing_lib_dirs(self.config, lib_dirs), [])
 
     def test_a_partial_build_is_named_partial(self):
         # Otherwise a one compiler trial produces a file called msvc-all.
+        # Unlike the complete archive, this one keeps the compiler and
+        # architecture list: there it is the only thing saying what is
+        # actually inside.
         name = package.full_archive_name(self.config, ["lib64-msvc-14.3"])
         self.assertEqual(
             name, "boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z")
@@ -952,7 +1104,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.3-64.zip", names)
         self.assertIn("boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z",
                       names)
-        self.assertNotIn("boost_1_93_0-snapshot-bin-msvc-all-32-64.7z", names)
+        self.assertNotIn("boost_1_93_0-snapshot-bin-msvc-all.7z", names)
         # and that one zip holds every variant of the six
         with zipfile.ZipFile(
                 workspace.out / "boost_1_93_0-snapshot-bin-msvc-14.3-64.zip"
@@ -1006,9 +1158,8 @@ class PackageTests(unittest.TestCase):
         self.assertIn("libarm64-msvc-14.5", lib_dirs)
         self.assertIn("lib32-msvc-14.1", lib_dirs)
         self.assertIn("lib64-msvc-14.5", lib_dirs)
-        self.assertEqual(
-            package.full_archive_name(self.config, lib_dirs),
-            "boost_1_93_0-snapshot-bin-msvc-all-32-64-arm64.7z")
+        self.assertEqual(package.full_archive_name(self.config, lib_dirs),
+                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
 
     def test_a_missing_arm64_build_makes_the_archive_partial(self):
         lib_dirs = sorted({c.lib_dir for c in self.config.matrix()

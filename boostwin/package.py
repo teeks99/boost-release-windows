@@ -88,16 +88,22 @@ def describe_lib_dirs(lib_dirs):
 def full_archive_name(config, lib_dirs):
     """Name the everything archive after what is actually inside it.
 
-    A build of part of the matrix -- one compiler while trying something out,
-    or a rerun of the configurations that failed -- must not produce a file
-    called ``msvc-all`` that only holds one library directory.
+    A complete build is ``...-bin-msvc-all.7z`` and says no more than that:
+    ``all`` already means every compiler and every architecture, so listing
+    them only dates the name the next time one is added.
+
+    A build of part of the matrix -- one compiler while trying something
+    out, or a rerun of the configurations that failed -- must not produce a
+    file called ``msvc-all`` that only holds one library directory, so that
+    one does spell out what is inside.
     """
     toolsets, archs = describe_lib_dirs(lib_dirs)
     complete = (toolsets == sorted(t.name for t in config.toolsets)
                 and archs == sorted(config.arch_keys))
-    label = "all" if complete else "partial-" + "-".join(toolsets)
-    return "{}-bin-msvc-{}-{}.7z".format(
-        config.release.release_name, label, "-".join(archs))
+    if complete:
+        return "{}-bin-msvc-all.7z".format(config.release.release_name)
+    return "{}-bin-msvc-partial-{}-{}.7z".format(
+        config.release.release_name, "-".join(toolsets), "-".join(archs))
 
 
 def missing_lib_dirs(config, lib_dirs):

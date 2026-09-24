@@ -3,6 +3,7 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 from . import repos
 from .util import fail
@@ -76,18 +77,82 @@ class BuildConfig:
     toolset: Toolset
     arch: Arch
     variant: str
-    threading: str
     link: str
     runtime_link: str
+
+    # Not a field: Boost's single-threaded builds are a relic that is not
+    # coming back, so every configuration is multithreaded.  b2 is still
+    # told so explicitly, because its own default is not.
+    threading: ClassVar[str] = "multi"
 
     @property
     def id(self):
         parts = ["msvc", self.toolset.name, self.arch.key, self.variant,
                  self.link, self.runtime_link]
-        name = "-".join(parts)
-        if self.threading != "multi":
-            name += "-" + self.threading
-        return name
+        return "-".join(parts)
+
+    @property
+    def abi_tag(self):
+        """b2's ABI tag letters for this configuration, e.g. ``sgd``.
+
+        ``runtime-tag`` in b2's ``tools/common.jam``: ``s`` for a static
+        runtime, ``g`` for a debug runtime, ``d`` for a debug build.  (b2
+        also has ``y`` for python-debugging and ``p``/``n`` for STLport;
+        neither is in this matrix.)  Empty for a release build against a
+        shared runtime -- those files carry no ABI tag at all.  ``link`` is
+        deliberately absent: b2 spells that one with the file name prefix,
+        not the tag.
+        """
+        tag = ""
+        if self.runtime_link == "static":
+            tag += "s"
+        if self.variant == "debug":
+            tag += "gd"
+        return tag
+
+    @property
+    def option_tags(self):
+        """The ``-mt``/``-sgd`` parts of a staged file name, in order.
+
+        This is what b2 actually writes, threading tag and all, so it is
+        what the staged names have to be checked against.  The work
+        directory leaves ``mt`` out -- see :attr:`short_id`.
+        """
+        tags = ["mt"]
+        if self.abi_tag:
+            tags.append(self.abi_tag)
+        return tuple(tags)
+
+    @property
+    def link_tag(self):
+        """How b2 spells this configuration's linkage, e.g. ``lib``.
+
+        b2 gives a static library the prefix ``lib`` and an import library
+        no prefix at all (``types/lib.jam``).  A directory cannot be named
+        "no prefix", so shared takes the obvious Windows counterpart.
+        """
+        return "lib" if self.link == "static" else "dll"
+
+    @property
+    def short_id(self):
+        """``id`` in b2's own vocabulary, e.g. ``msvc-14.5-arm64-lib-sgd``.
+
+        Only the work tree is named with this.  ``id`` is what CI job names,
+        artifact names, ``--id`` and every recorded result use, and those are
+        worth keeping readable -- but b2 builds paths beneath the work tree
+        that came within a few characters of Windows' 260 character
+        MAX_PATH, so there the dozen characters matter more than the words
+        do.  Spelling the variant the way b2 does means a work directory
+        reads like the file names in the stage directory beside it.
+
+        b2's ``mt`` is left out: it is the same for every configuration, so
+        it distinguishes nothing.  The staged file names still carry it,
+        because that part is b2's to decide, not ours.
+        """
+        parts = ["msvc", self.toolset.name, self.arch.key, self.link_tag]
+        if self.abi_tag:
+            parts.append(self.abi_tag)
+        return "-".join(parts)
 
     @property
     def lib_dir(self):
@@ -310,7 +375,6 @@ class Config:
     toolsets: list
     archs: dict
     variants: list = field(default_factory=list)
-    threadings: list = field(default_factory=lambda: ["multi"])
     link_combos: list = field(default_factory=list)
 
     @property
@@ -335,16 +399,14 @@ class Config:
                         toolset.name, arch_key))
                 arch = self.archs[arch_key]
                 for variant in self.variants:
-                    for threading in self.threadings:
-                        for combo in self.link_combos:
-                            configs.append(BuildConfig(
-                                toolset=toolset,
-                                arch=arch,
-                                variant=variant,
-                                threading=threading,
-                                link=combo.link,
-                                runtime_link=combo.runtime_link,
-                            ))
+                    for combo in self.link_combos:
+                        configs.append(BuildConfig(
+                            toolset=toolset,
+                            arch=arch,
+                            variant=variant,
+                            link=combo.link,
+                            runtime_link=combo.runtime_link,
+                        ))
         return configs
 
     @property
@@ -359,9 +421,25 @@ class Config:
 
     @property
     def full_archive_name(self):
-        """e.g. ``boost_1_93_0-snapshot-bin-msvc-all-32-64.7z``."""
-        return "{}-bin-msvc-all-{}.7z".format(
-            self.release.release_name, "-".join(self.arch_keys))
+        """e.g. ``boost_1_93_0-snapshot-bin-msvc-all.7z``."""
+        return "{}-bin-msvc-all.7z".format(self.release.release_name)
+
+
+def check_work_directories(config):
+    """Every configuration has to get a work directory of its own.
+
+    ``short_id`` leaves out what is constant across the matrix, so a
+    build.toml that made one of those vary -- a third variant, say -- would
+    have two configurations building on top of each other.  Caught here
+    rather than left to produce a corrupt build.
+    """
+    seen = {}
+    for build_config in config.matrix():
+        first = seen.setdefault(build_config.short_id, build_config.id)
+        if first != build_config.id:
+            fail("{} and {} would both use the work directory {!r}; "
+                 "BuildConfig.short_id has to tell them apart".format(
+                     first, build_config.id, build_config.short_id))
 
 
 ENVIRONMENT_OVERRIDES = {
@@ -506,7 +584,6 @@ def load(path=None, overrides=None):
     variants_table = data.get("variants", {})
     variants = [str(v) for v in variants_table.get("variant",
                                                    ["debug", "release"])]
-    threadings = [str(t) for t in variants_table.get("threading", ["multi"])]
     combos = variants_table.get("link_combos") or [
         {"link": "shared", "runtime_link": "shared"},
         {"link": "static", "runtime_link": "shared"},
@@ -522,7 +599,7 @@ def load(path=None, overrides=None):
                  "remove it from [variants].link_combos")
         link_combos.append(LinkCombo(link=link, runtime_link=runtime_link))
 
-    return Config(
+    config = Config(
         path=path,
         release=release,
         deps=deps,
@@ -531,6 +608,7 @@ def load(path=None, overrides=None):
         toolsets=toolsets,
         archs=archs,
         variants=variants,
-        threadings=threadings,
         link_combos=link_combos,
     )
+    check_work_directories(config)
+    return config

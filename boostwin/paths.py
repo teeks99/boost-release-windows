@@ -64,7 +64,11 @@ class Workspace(object):
 
     # -- per configuration -----------------------------------------------
     def work(self, build_config):
-        return self.root / "work" / build_config.id
+        # short_id, not id: everything b2 creates lives under here and the
+        # deepest of those paths runs close to Windows' MAX_PATH.  Nothing
+        # reads this directory back by name -- the staged output, which the
+        # artifacts and the packaging step do match on, keeps the full id.
+        return self.root / "work" / build_config.short_id
 
     def build_dir(self, build_config):
         return self.work(build_config) / "bin.v2"
