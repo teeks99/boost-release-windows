@@ -224,6 +224,50 @@ class VsProjTests(unittest.TestCase):
         self.assertIn("<BoostExtraLibs>", text)
         self.assertIn("charconv", text)
 
+    def test_v141_projects_do_not_rely_on_the_bare_10_0_sdk_alias(self):
+        # WindowsTargetPlatformVersion 10.0 stands for "whichever Windows 10
+        # SDK is installed" only from MSBuild's v160 (Visual Studio 2019)
+        # targets onwards.  A v141 build goes through the v150 targets, which
+        # take it literally, look for an SDK directory named 10.0 and stop
+        # with MSB8036 -- so the v141 projects have to resolve a concrete
+        # version themselves.  Newer toolsets are free to keep the alias.
+        config = load()
+        toolsets = [t for t in config.toolsets
+                    if vsproj.platform_toolset(t) == "v141"]
+        self.assertTrue(toolsets, "build.toml no longer lists a v141 toolset")
+        for toolset in toolsets:
+            for path in (vsproj.vcxproj_path(config, toolset),
+                         vsproj.python_vcxproj_path(config, toolset)):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("<WindowsTargetPlatformVersion>10.0<", text,
+                                 path)
+                self.assertIn("GetLatestSDKTargetPlatformVersion", text,
+                              path)
+
+    def test_msbuild_is_told_which_windows_sdk_to_use(self):
+        # Same reason: whatever the project asks for, the version vcvarsall
+        # resolved wins, so the smoke build uses the SDK the libraries under
+        # test were built against.
+        config = load()
+        build_config = [c for c in config.matrix()
+                        if c.toolset.name == "14.1"][0]
+        toolchain = mock.Mock(env={}, info={"vs_path": "vs",
+                                            "windows_sdk": "10.0.22621.0"})
+        completed = mock.Mock(returncode=0, stdout=b"")
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = paths.Workspace(Path(tmp), config)
+            with mock.patch.object(smoke.vsproj, "find_msbuild",
+                                   return_value=Path("MSBuild.exe")), \
+                    mock.patch.object(smoke.subprocess, "run",
+                                      return_value=completed) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                smoke._msbuild(
+                    workspace, build_config, toolchain,
+                    vsproj.vcxproj_path(config, build_config.toolset),
+                    "compile.log")
+        command = run.call_args[0][0]
+        self.assertIn("/p:WindowsTargetPlatformVersion=10.0.22621.0", command)
+
 
 def run_cli(*argv):
     """Run a boostwin command against this repo's build.toml, capturing output."""

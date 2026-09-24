@@ -105,6 +105,17 @@ def _msbuild(workspace, build_config, toolchain, vcxproj, log_name):
     command = [str(msbuild), str(vcxproj), "/nologo", "/t:Rebuild",
                "/p:Configuration=" + configuration,
                "/p:Platform=" + platform]
+    # The projects ask for WindowsTargetPlatformVersion 10.0, which means
+    # "whichever Windows 10 SDK is installed" only from the v160 (Visual
+    # Studio 2019) MSBuild targets onwards.  A v141 build goes through the
+    # v150 targets instead, which take it literally, look for an SDK
+    # directory named 10.0 and stop with MSB8036.  vcvarsall.bat has
+    # already resolved a concrete version for this toolchain, so pass that
+    # one down -- which also keeps the smoke build on the same SDK the
+    # libraries under test were built against, for every toolset.
+    windows_sdk = toolchain.info.get("windows_sdk")
+    if windows_sdk:
+        command.append("/p:WindowsTargetPlatformVersion=" + windows_sdk)
     completed = subprocess.run(
         command, cwd=str(vcxproj.parent), env=toolchain.env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

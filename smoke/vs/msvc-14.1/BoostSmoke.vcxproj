@@ -66,7 +66,15 @@
     <ProjectGuid>{C52653E0-DD0A-5049-B960-FB98E025E255}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>BoostSmoke</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!-- Plain "10.0" means "whichever Windows 10 SDK is installed" only
+         from the v160 (Visual Studio 2019) MSBuild targets onwards.  v141
+         builds go through the v150 targets, which take it literally, look
+         for an SDK directory named 10.0 and stop with MSB8036, so resolve
+         the newest installed one here instead.  `boostwin test` overrides
+         this from the command line with the version vcvarsall.bat picked;
+         this is what makes the project build when opened directly in
+         Visual Studio. -->
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)' == ''">$([Microsoft.Build.Utilities.ToolLocationHelper]::GetLatestSDKTargetPlatformVersion('Windows', '10.0'))</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
