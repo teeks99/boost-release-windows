@@ -1,0 +1,209 @@
+# Configuration for the Boost Windows release builds.
+#
+#   python -m boostwin matrix               # what will be built
+#   python -m boostwin all                  # build everything on this machine
+#
+# Everything below is also what the GitHub Actions workflow reads, so a change
+# here changes both the local build and CI.
+
+# --------------------------------------------------------------- release ---
+# Which Boost source archive the whole release is built from.
+[release]
+version = "93"
+minor_version = "0"
+# master-snapshot | beta-rc | beta | rc | release
+type = "master-snapshot"
+# archives | jfrog | git | local
+repo = "archives"
+beta = 1
+rc = 1
+source_extension = "tar.bz2"
+
+# ------------------------------------------------------------------ deps ---
+# Pre-built dependencies, hosted because they are not available upstream in a
+# usable form.  These are the same versions the hand-run builds have used.
+[deps]
+url = "https://boost.teeks99.com/deps/"
+python = "3.14.0"
+zlib = "1.3.1"
+bzip2 = "1.0.8"
+sevenzip = "2201"
+
+# ----------------------------------------------------------------- build ---
+[build]
+# 0 means "one b2 job per CPU".
+b2_jobs = 0
+without = ["mpi"]
+layout = "versioned"
+build_type = "complete"
+extra_b2_args = []
+# Empty means: D:\boostwin on Windows if D: exists, else C:\boostwin, else
+# ./_build.  Override with --build-root or $BOOSTWIN_BUILD_ROOT.
+build_root = ""
+# Keep bin.v2 after a configuration finishes.  Expensive; off by default.
+keep_intermediate = false
+
+# ------------------------------------------------------------ toolchains ---
+# One table per MSVC toolset.
+#
+# `runner` matters more than it looks: GitHub moved the `windows-2025` and
+# `windows-latest` labels onto the Visual Studio 2026 image in June 2026, so
+# `windows-2022` is now the only label that still carries Visual Studio 2022.
+# (The Windows2025-Readme.md in actions/runner-images describes the old image,
+# not what the label resolves to.)
+#
+# `msvc_versions` is what actually pins the compiler: the MSVC toolset
+# directory that gets used must belong to one of these families, so if a
+# runner image changes which Visual Studio it ships the build stops with an
+# explanation instead of quietly producing, say, v145 binaries named vc143.
+# `vcvars_ver` additionally forces a specific side-by-side toolset; leave it
+# empty to take that Visual Studio's default and let `msvc_versions` check it.
+# `install_components` are added with the Visual Studio installer when the
+# toolset is not there, which is how v141 gets onto a runner image.
+#
+# `arch_runners` overrides `runner` for one architecture.  Only arm64 needs
+# it: those binaries are built natively on an Arm64 runner, while the same
+# compiler's 32 and 64 bit builds stay on the x64 image.  Everything else
+# about the toolset -- the Visual Studio, the MSVC family, the components --
+# is the same either way, so this is an override rather than a second
+# toolset entry.
+
+[[toolset]]
+name = "14.1"
+vs_display = "Microsoft Visual Studio 2017 toolset (v141)"
+runner = "windows-2022"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = "14.16"
+msvc_versions = ["14.1"]
+archs = ["32", "64"]
+install_components = ["Microsoft.VisualStudio.Component.VC.v141.x86.x64"]
+
+[[toolset]]
+name = "14.2"
+vs_display = "Microsoft Visual Studio 2019 toolset (v142)"
+runner = "windows-2022"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = "14.29"
+msvc_versions = ["14.2"]
+archs = ["32", "64"]
+install_components = ["Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64"]
+
+# v143 spans two MSVC directory families: Visual Studio 2022 started at 14.3x
+# and is now at 14.4x.  Both are vc143.
+[[toolset]]
+name = "14.3"
+vs_display = "Microsoft Visual Studio 2022 (v143)"
+runner = "windows-2022"
+vs_version_range = "[17.0,18.0)"
+vcvars_ver = ""
+msvc_versions = ["14.4", "14.3"]
+archs = ["32", "64"]
+install_components = []
+
+# The only toolset that builds arm64.  `windows-11-vs2026-arm` is named
+# rather than `windows-11-arm` for the same reason 14.3 still says
+# windows-2022: the plain label carries Visual Studio 2022 until GitHub
+# moves it, and the explicit one is right both before and after that.
+[[toolset]]
+name = "14.5"
+vs_display = "Microsoft Visual Studio 2026 (v145)"
+runner = "windows-2025"
+vs_version_range = "[18.0,19.0)"
+vcvars_ver = ""
+msvc_versions = ["14.5"]
+archs = ["32", "64", "arm64"]
+arch_runners = { arm64 = "windows-11-vs2026-arm" }
+install_components = []
+
+# --------------------------------------------------------- architectures ---
+# `vcvars_target` is the target half of the vcvarsall.bat argument; the host
+# half is worked out at run time, so the same entry works for a native or a
+# cross build.
+
+[arch.32]
+address_model = "32"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x86"
+python_arch = "32"
+
+[arch.64]
+address_model = "64"
+architecture = "x86"
+abi = "ms"
+vcvars_target = "x64"
+python_arch = "64"
+
+# Built by msvc-14.5 only: v141, v142 and v143 predate the Arm64 runner
+# images, and the older compilers are there for people still targeting the
+# desktops that Boost's 32 and 64 bit binaries are for.
+[arch.arm64]
+address_model = "64"
+architecture = "arm"
+abi = "ms"
+vcvars_target = "arm64"
+python_arch = "arm64"
+
+# -------------------------------------------------------------- variants ---
+# Together these reproduce exactly what `b2 --build-type=complete` builds on
+# Windows, one configuration at a time.  link=shared with runtime-link=static
+# is rejected by Boost itself, so it is not listed.
+[variants]
+variant = ["debug", "release"]
+link_combos = [
+    { link = "shared", runtime_link = "shared" },
+    { link = "static", runtime_link = "shared" },
+    { link = "static", runtime_link = "static" },
+]
+
+# ----------------------------------------------------------------- smoke ---
+# `compile` and `python` build through the checked-in Visual Studio project
+# for each toolset, under smoke/vs/msvc-<toolset>/ -- see boostwin/vsproj.py
+# and boostwin/smoke.py.
+[smoke]
+enabled = true
+# Build a Boost.Python extension module and import it.  Only attempted where
+# that makes sense (shared library, shared runtime; debug or release).
+python_extension = true
+# A library missing from this list fails the configuration.  Anything else
+# that was staged is reported but not required, so a new Boost library does
+# not break the build on the day it lands; `package` separately checks that
+# all the configurations agree with each other, which catches a library that
+# quietly stops building for one variant or one compiler.
+#
+# boost_system is deliberately absent: it has been header-only since 1.69 and
+# no longer stages a library at all.
+required_libs = [
+    "atomic", "bzip2", "charconv", "chrono", "container", "context",
+    "contract", "date_time", "exception", "filesystem", "graph",
+    "iostreams", "json", "locale", "log", "log_setup", "math_c99",
+    "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l",
+    "nowide", "prg_exec_monitor", "program_options", "random", "regex",
+    "serialization", "stacktrace_dump", "stacktrace_noop",
+    "test_exec_monitor", "thread", "timer", "type_erasure",
+    "unit_test_framework", "url", "wave", "wserialization", "zlib",
+]
+
+# Libraries the smoke program has to name on the link line because Boost does
+# not auto-link them.  Boost.JSON's compiled code calls boost::charconv, but
+# it only includes charconv's detail config, which carries no autolink block;
+# a shared build hides that inside the DLL, a static one fails to link.
+extra_link_libs = ["charconv"]
+
+# Libraries that are only expected in some configurations.  `{python_tag}`
+# expands to e.g. 314.
+[[smoke.conditional_libs]]
+libs = ["python{python_tag}"]
+runtime_link = ["shared"]
+
+# Boost.Coroutine and Boost.Fiber are not built for Windows on ARM64, and
+# that is upstream's doing rather than something to fix here.  There is no
+# fcontext assembly for arm64/pe, so Boost.Context's own Jamfile forces
+# <context-impl>winfib (which carries -DBOOST_USE_WINFIB) for that target --
+# but it forces it only on itself.  Coroutine and Fiber are built without
+# that define, compile against the fcontext interface, and then fail to link
+# against the winfib boost_context.  Coroutine could not work either way: it
+# uses context::detail::fcontext_t directly.
+[[smoke.conditional_libs]]
+libs = ["coroutine", "fiber"]
+arch = ["32", "64"]

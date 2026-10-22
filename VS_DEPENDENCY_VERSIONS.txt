@@ -1,5 +1,0 @@
-
-Microsoft Visual Studio 2017 - msvc-14.1 - VS 15.9.78
-Microsoft Visual Studio 2019 - msvc-14.2 - VS 16.11.53
-Microsoft Visual Studio 2022 - msvc-14.3 - VS 17.14.27
-Microsoft Visual Studio 2026 - msvc-14.5 - VS 18.3.2
