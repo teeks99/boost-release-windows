@@ -171,10 +171,11 @@ python_extension = true
 # all the configurations agree with each other, which catches a library that
 # quietly stops building for one variant or one compiler.
 #
-# boost_system is deliberately absent: it has been header-only since 1.69 and
-# no longer stages a library at all.
+# boost_system and boost_container are deliberately absent: both are
+# header-only now (System since 1.69, Container since 1.93) and no longer
+# stage a library at all, even though `b2 --show-libraries` still lists them.
 required_libs = [
-    "atomic", "bzip2", "charconv", "chrono", "container", "context",
+    "atomic", "bzip2", "charconv", "chrono", "context",
     "contract", "date_time", "exception", "filesystem", "graph",
     "iostreams", "json", "locale", "log", "log_setup", "math_c99",
     "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l",

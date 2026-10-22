@@ -132,7 +132,7 @@ link_combos = [
 enabled = true
 python_extension = true
 required_libs = [
-    "atomic", "bzip2", "charconv", "chrono", "container", "context",
+    "atomic", "bzip2", "charconv", "chrono", "context",
     "contract", "date_time", "exception", "filesystem", "graph",
     "iostreams", "json", "locale", "log", "log_setup", "math_c99",
     "math_c99f", "math_c99l", "math_tr1", "math_tr1f", "math_tr1l",
