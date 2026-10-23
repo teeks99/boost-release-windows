@@ -265,10 +265,10 @@ class LibraryNameTests(unittest.TestCase):
                          inventory.required_libraries(config, static_runtime))
 
     def test_coroutine_and_fiber_are_not_required_on_arm64(self):
-        # Neither builds for Windows on ARM64: Boost.Context is forced to its
-        # winfib implementation there and the two libraries are built against
-        # the fcontext interface anyway, so they fail to link.  Requiring them
-        # would fail every arm64 configuration for something upstream does.
+        # Neither is built for Windows on ARM64 (see [arch.arm64] in
+        # build.toml): both compile against Boost.Context's fcontext
+        # interface, which its winfib implementation there does not provide.
+        # Requiring them would fail every arm64 configuration.
         config = load()
         for build_config in config.matrix():
             required = inventory.required_libraries(config, build_config)
@@ -279,6 +279,17 @@ class LibraryNameTests(unittest.TestCase):
             # ...and nothing else was lost along the way.
             self.assertIn("context", required)
             self.assertIn("thread", required)
+
+    def test_nothing_an_architecture_is_built_without_is_required_there(self):
+        # Otherwise every configuration of that architecture would fail its
+        # inventory check for a library b2 was told not to build.  (b2 takes
+        # library names and inventory stems; for coroutine and fiber the two
+        # are the same, which is what lets this compare them.)
+        config = load()
+        for build_config in config.matrix():
+            required = inventory.required_libraries(config, build_config)
+            self.assertFalse(set(build_config.arch.without) & set(required),
+                             build_config.id)
 
     def test_an_arch_filter_is_the_only_new_conditional_dimension(self):
         # The filters are matched by name against a BuildConfig, and arch is
@@ -499,6 +510,18 @@ class B2CommandTests(unittest.TestCase):
             self.assertEqual(len(staged), 1, build_config.id)
             self.assertTrue(staged[0].endswith("/" + build_config.lib_dir),
                             staged[0])
+
+    def test_arm64_is_built_without_coroutine_and_fiber(self):
+        # A shared arm64 build of either fails to link, but a static one has
+        # no link step to fail: b2 archives the objects and stages them, and
+        # the arm64 zip ships two libraries nobody can link against.
+        for build_config, command in self.commands():
+            arm64 = build_config.arch.key == "arm64"
+            for library in ("coroutine", "fiber"):
+                self.assertEqual("--without-" + library in command, arm64,
+                                 "{} for {}".format(library, build_config.id))
+            # ...on top of what every architecture leaves out, not instead.
+            self.assertIn("--without-mpi", command, build_config.id)
 
 
 def run_cli(*argv):
