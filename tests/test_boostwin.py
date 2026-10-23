@@ -3,6 +3,7 @@
     python -m unittest discover -s tests
 """
 import contextlib
+import dataclasses
 import io
 import json
 import os
@@ -203,7 +204,9 @@ class ConfigTests(unittest.TestCase):
             del os.environ["BOOSTWIN_RELEASE_TYPE"]
 
     def test_python_archive_and_directory_names_differ(self):
-        deps = load().deps
+        # Pinned rather than read from build.toml, so bumping Python there
+        # does not break a test about how the names are formed.
+        deps = dataclasses.replace(load().deps, python="3.14.0")
         self.assertEqual(deps.python_archive("64"), "Python3.14.0-64.tar.xz")
         self.assertEqual(deps.python_dir("64"), "Python314-64")
         self.assertEqual(deps.python_tag, "314")
@@ -259,9 +262,10 @@ class LibraryNameTests(unittest.TestCase):
                           if c.runtime_link == "shared"][0]
         static_runtime = [c for c in config.matrix()
                           if c.runtime_link == "static"][0]
-        self.assertIn("python314",
+        boost_python = "python" + config.deps.python_tag
+        self.assertIn(boost_python,
                       inventory.required_libraries(config, shared_runtime))
-        self.assertNotIn("python314",
+        self.assertNotIn(boost_python,
                          inventory.required_libraries(config, static_runtime))
 
     def test_coroutine_and_fiber_are_not_required_on_arm64(self):
@@ -1214,9 +1218,10 @@ class PackageTests(unittest.TestCase):
         text = (self.workspace.out / "DEPENDENCY_VERSIONS.txt").read_text()
         for toolset in ("14.1", "14.2", "14.3", "14.5"):
             self.assertIn("msvc-" + toolset, text)
-        self.assertIn("zlib: 1.3.1", text)
-        self.assertIn("bzip2: 1.0.8", text)
-        self.assertIn("Python: 3.14.0", text)
+        deps = self.config.deps
+        self.assertIn("zlib: " + deps.zlib, text)
+        self.assertIn("bzip2: " + deps.bzip2, text)
+        self.assertIn("Python: " + deps.python, text)
 
     def test_result_matrix_reports_every_configuration(self):
         package.package(self.workspace, per_config=False, full=False,
