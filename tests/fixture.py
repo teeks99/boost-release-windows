@@ -17,7 +17,11 @@ def staged_file_names(config, build_config):
     tags = [inventory.expected_toolset_tag(build_config)]
     tags += inventory.expected_option_tags(build_config)
     tags.append(inventory.expected_arch_tag(build_config))
-    tags.append("1_" + config.release.version)
+    # b2 leaves out a patch level of 0: 1_93 for 1.93.0, 1_93_1 for 1.93.1.
+    version = ["1", config.release.version]
+    if config.release.minor_version != "0":
+        version.append(config.release.minor_version)
+    tags.append("_".join(version))
     tag = "-".join(tags)
 
     names = []

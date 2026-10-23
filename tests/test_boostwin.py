@@ -28,6 +28,19 @@ def load(**overrides):
     return config_module.load(BUILD_TOML, overrides=overrides or None)
 
 
+# A Boost release that will never exist (boostwin's major version is always
+# 1).  Tests about how things are named pin it, so they do not change with
+# what build.toml -- or a BOOSTWIN_RELEASE_* variable in CI -- says is being
+# built.  Its libraries end in -1_942_1: b2 keeps a patch level that is not 0.
+FAKE_RELEASE = {"version": "942", "minor_version": "1",
+                "type": "master-snapshot", "repo": "archives",
+                "source_extension": "tar.bz2"}
+
+
+def load_fake_release(**overrides):
+    return load(**dict(FAKE_RELEASE, **overrides))
+
+
 class ConfigTests(unittest.TestCase):
     def test_matrix_covers_every_dimension(self):
         config = load()
@@ -130,32 +143,30 @@ class ConfigTests(unittest.TestCase):
                 build_config.short_id)
 
     def test_release_naming_matches_the_published_layout(self):
-        snapshot = load(version="93", minor_version="0",
-                        type="master-snapshot", repo="archives")
+        snapshot = load_fake_release()
         self.assertEqual(snapshot.release.release_name,
-                         "boost_1_93_0-snapshot")
+                         "boost_1_942_1-snapshot")
         self.assertEqual(
             snapshot.release.source_url,
-            "https://archives.boost.io/master/boost_1_93_0-snapshot.tar.bz2")
+            "https://archives.boost.io/master/boost_1_942_1-snapshot.tar.bz2")
 
-        candidate = load(version="92", minor_version="0", type="rc", rc="1")
-        self.assertEqual(candidate.release.release_name, "boost_1_92_0")
+        candidate = load_fake_release(type="rc", rc="1")
+        self.assertEqual(candidate.release.release_name, "boost_1_942_1")
         self.assertEqual(
             candidate.release.source_url,
-            "https://archives.boost.io/release/1.92.0/source/"
-            "boost_1_92_0_rc1.tar.bz2")
+            "https://archives.boost.io/release/1.942.1/source/"
+            "boost_1_942_1_rc1.tar.bz2")
 
-        beta = load(version="92", minor_version="0", type="beta-rc",
-                    beta="1", rc="1")
-        self.assertEqual(beta.release.release_name, "boost_1_92_0_b1")
+        beta = load_fake_release(type="beta-rc", beta="1", rc="1")
+        self.assertEqual(beta.release.release_name, "boost_1_942_1_b1")
 
     def test_the_full_archive_is_named_all_and_nothing_else(self):
         # It holds every compiler and every architecture, so it says so
         # once.  Listing them would date the name the next time one is
         # added -- which is exactly what arm64 did.
-        config = load()
+        config = load_fake_release()
         self.assertEqual(config.full_archive_name,
-                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
+                         "boost_1_942_1-snapshot-bin-msvc-all.7z")
         for arch_key in config.arch_keys:
             self.assertNotIn(arch_key, config.full_archive_name)
 
@@ -192,30 +203,32 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("14.5", str(raised.exception))
 
     def test_environment_overrides_are_applied(self):
-        os.environ["BOOSTWIN_RELEASE_VERSION"] = "91"
-        os.environ["BOOSTWIN_RELEASE_TYPE"] = "release"
-        try:
-            self.assertEqual(load().release.release_name, "boost_1_91_0")
+        # patch.dict puts back whatever was set before.  In CI these
+        # variables carry the workflow's inputs, and the tests that run after
+        # this one have to go on seeing them.
+        with mock.patch.dict(os.environ, {
+                "BOOSTWIN_RELEASE_VERSION": "942",
+                "BOOSTWIN_RELEASE_MINOR_VERSION": "1",
+                "BOOSTWIN_RELEASE_TYPE": "release",
+                "BOOSTWIN_RELEASE_REPO": "archives"}):
+            self.assertEqual(load().release.release_name, "boost_1_942_1")
             # An explicit flag still wins over the environment.
-            self.assertEqual(load(version="90").release.release_name,
-                             "boost_1_90_0")
-        finally:
-            del os.environ["BOOSTWIN_RELEASE_VERSION"]
-            del os.environ["BOOSTWIN_RELEASE_TYPE"]
+            self.assertEqual(load(version="943").release.release_name,
+                             "boost_1_943_1")
 
     def test_python_archive_and_directory_names_differ(self):
         # Pinned rather than read from build.toml, so bumping Python there
         # does not break a test about how the names are formed.
-        deps = dataclasses.replace(load().deps, python="3.14.0")
-        self.assertEqual(deps.python_archive("64"), "Python3.14.0-64.tar.xz")
-        self.assertEqual(deps.python_dir("64"), "Python314-64")
-        self.assertEqual(deps.python_tag, "314")
+        deps = dataclasses.replace(load().deps, python="9.42.1")
+        self.assertEqual(deps.python_archive("64"), "Python9.42.1-64.tar.xz")
+        self.assertEqual(deps.python_dir("64"), "Python942-64")
+        self.assertEqual(deps.python_tag, "942")
 
 
 class LibraryNameTests(unittest.TestCase):
     def test_parses_a_versioned_layout_name(self):
         parsed = inventory.parse_library_name(
-            "libboost_filesystem-vc143-mt-sgd-x64-1_92.lib")
+            "libboost_filesystem-vc143-mt-sgd-x64-1_942_1.lib")
         self.assertEqual(parsed["library"], "filesystem")
         self.assertEqual(parsed["toolset_tag"], "vc143")
         self.assertEqual(parsed["option_tags"], ["mt", "sgd"])
@@ -817,7 +830,7 @@ class ToolsetSelectionTests(unittest.TestCase):
 class InventoryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.config = load()
+        self.config = load_fake_release()
         self.build_config = [c for c in self.config.matrix()
                              if c.id == "msvc-14.3-64-debug-static-static"][0]
         self.root = Path(self.tmp.name)
@@ -844,7 +857,8 @@ class InventoryTests(unittest.TestCase):
     def test_a_file_from_the_wrong_variant_fails(self):
         lib_dir = self.workspace.stage_lib(self.build_config)
         # A release file that has strayed into the debug staging directory.
-        (lib_dir / "libboost_thread-vc143-mt-s-x64-1_93.lib").write_text("x")
+        stray = lib_dir / "libboost_thread-vc143-mt-s-x64-1_942_1.lib"
+        stray.write_text("x")
         result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
         self.assertTrue(any("option tags" in problem
@@ -852,7 +866,8 @@ class InventoryTests(unittest.TestCase):
 
     def test_a_file_from_the_wrong_toolset_fails(self):
         lib_dir = self.workspace.stage_lib(self.build_config)
-        (lib_dir / "libboost_thread-vc142-mt-sgd-x64-1_93.lib").write_text("x")
+        stray = lib_dir / "libboost_thread-vc142-mt-sgd-x64-1_942_1.lib"
+        stray.write_text("x")
         result = inventory.check_inventory(self.workspace, self.build_config)
         self.assertFalse(result["ok"])
         self.assertTrue(any("toolset tag" in problem
@@ -877,9 +892,9 @@ class AutolinkTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.lib_dir = Path(self.tmp.name)
-        for name in ("boost_filesystem-vc143-mt-x64-1_93.lib",
-                     "boost_thread-vc143-mt-x64-1_93.lib",
-                     "libboost_exception-vc143-mt-x64-1_93.lib"):
+        for name in ("boost_filesystem-vc143-mt-x64-1_942_1.lib",
+                     "boost_thread-vc143-mt-x64-1_942_1.lib",
+                     "libboost_exception-vc143-mt-x64-1_942_1.lib"):
             (self.lib_dir / name).write_text("x")
 
     def tearDown(self):
@@ -887,9 +902,9 @@ class AutolinkTests(unittest.TestCase):
 
     def test_staged_boost_libraries_pass(self):
         boost, system, problems = smoke.classify_autolink(
-            self.lib_dir, ["boost_filesystem-vc143-mt-x64-1_93.lib",
-                           "boost_thread-vc143-mt-x64-1_93.lib",
-                           "libboost_exception-vc143-mt-x64-1_93.lib"])
+            self.lib_dir, ["boost_filesystem-vc143-mt-x64-1_942_1.lib",
+                           "boost_thread-vc143-mt-x64-1_942_1.lib",
+                           "libboost_exception-vc143-mt-x64-1_942_1.lib"])
         self.assertEqual(problems, [])
         self.assertEqual(len(boost), 3)
         self.assertEqual(system, [])
@@ -897,15 +912,15 @@ class AutolinkTests(unittest.TestCase):
     def test_a_windows_sdk_library_is_not_required_to_be_staged(self):
         boost, system, problems = smoke.classify_autolink(
             self.lib_dir, ['"synchronization".lib',
-                           "boost_thread-vc143-mt-x64-1_93.lib"])
+                           "boost_thread-vc143-mt-x64-1_942_1.lib"])
         self.assertEqual(problems, [])
         self.assertEqual(system, ["synchronization.lib"])
-        self.assertEqual(boost, ["boost_thread-vc143-mt-x64-1_93.lib"])
+        self.assertEqual(boost, ["boost_thread-vc143-mt-x64-1_942_1.lib"])
 
     def test_a_boost_library_that_was_not_staged_fails(self):
         _boost, _system, problems = smoke.classify_autolink(
-            self.lib_dir, ["boost_thread-vc143-mt-x64-1_93.lib",
-                           "boost_regex-vc143-mt-x64-1_93.lib"])
+            self.lib_dir, ["boost_thread-vc143-mt-x64-1_942_1.lib",
+                           "boost_regex-vc143-mt-x64-1_942_1.lib"])
         self.assertEqual(len(problems), 1)
         self.assertIn("boost_regex", problems[0])
 
@@ -913,7 +928,7 @@ class AutolinkTests(unittest.TestCase):
         # A debug name against a release staging directory: the file is not
         # there, which is the whole point of checking.
         _boost, _system, problems = smoke.classify_autolink(
-            self.lib_dir, ["boost_thread-vc143-mt-gd-x64-1_93.lib"])
+            self.lib_dir, ["boost_thread-vc143-mt-gd-x64-1_942_1.lib"])
         self.assertEqual(len(problems), 1)
         self.assertIn("-mt-gd-", problems[0])
 
@@ -929,13 +944,13 @@ class AutolinkTests(unittest.TestCase):
         # Exactly the shape cl.exe emits, including the quoted system library.
         output = (
             "smoke.cpp\n"
-            "Linking to lib file: boost_atomic-vc143-mt-x64-1_93.lib\n"
+            "Linking to lib file: boost_atomic-vc143-mt-x64-1_942_1.lib\n"
             'Linking to lib file: "synchronization".lib\n'
-            "Linking to lib file: boost_thread-vc143-mt-x64-1_93.lib\n")
+            "Linking to lib file: boost_thread-vc143-mt-x64-1_942_1.lib\n")
         found = smoke.AUTOLINK_LINE.findall(output)
-        self.assertEqual(found, ["boost_atomic-vc143-mt-x64-1_93.lib",
+        self.assertEqual(found, ["boost_atomic-vc143-mt-x64-1_942_1.lib",
                                  '"synchronization".lib',
-                                 "boost_thread-vc143-mt-x64-1_93.lib"])
+                                 "boost_thread-vc143-mt-x64-1_942_1.lib"])
 
 
 class ExtraLinkTests(unittest.TestCase):
@@ -949,7 +964,7 @@ class ExtraLinkTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_a_static_library_is_found_by_stem(self):
-        name = "libboost_charconv-vc143-mt-x64-1_93.lib"
+        name = "libboost_charconv-vc143-mt-x64-1_942_1.lib"
         (self.lib_dir / name).write_text("x")
         resolved, problems = smoke.extra_link_libraries(
             self.lib_dir, ["charconv"])
@@ -957,9 +972,9 @@ class ExtraLinkTests(unittest.TestCase):
         self.assertEqual([p.name for p in resolved], [name])
 
     def test_an_import_library_is_found_by_stem(self):
-        name = "boost_charconv-vc143-mt-gd-x64-1_93.lib"
+        name = "boost_charconv-vc143-mt-gd-x64-1_942_1.lib"
         (self.lib_dir / name).write_text("x")
-        (self.lib_dir / "boost_charconv-vc143-mt-gd-x64-1_93.dll").write_text("x")
+        (self.lib_dir / "boost_charconv-vc143-mt-gd-x64-1_942_1.dll").write_text("x")
         resolved, problems = smoke.extra_link_libraries(
             self.lib_dir, ["charconv"])
         self.assertEqual(problems, [])
@@ -978,17 +993,17 @@ class ExtraLinkTests(unittest.TestCase):
         # The compile check has to say which, or the result matrix points at
         # the smoke project instead of at the build.
         output = (
-            "  Linking to lib file: libboost_serialization-vc145-mt-s-a64-1_93.lib\n"
+            "  Linking to lib file: libboost_serialization-vc145-mt-s-a64-1_942_1.lib\n"
             "LINK : fatal error LNK1104: cannot open file "
-            "'libboost_serialization-vc145-mt-s-a64-1_93.lib' [BoostSmoke.vcxproj]\n")
+            "'libboost_serialization-vc145-mt-s-a64-1_942_1.lib' [BoostSmoke.vcxproj]\n")
         self.assertEqual(
             smoke.missing_link_libraries(output),
-            ["libboost_serialization-vc145-mt-s-a64-1_93.lib"])
+            ["libboost_serialization-vc145-mt-s-a64-1_942_1.lib"])
 
     def test_a_missing_system_library_is_not_blamed_on_the_build(self):
         # Only Boost names mean "this configuration did not stage it".
         output = ("LINK : fatal error LNK1104: cannot open file "
-                  "'python314.lib'\n")
+                  "'python942.lib'\n")
         self.assertEqual(smoke.missing_link_libraries(output), [])
 
     def test_nothing_configured_asks_for_nothing(self):
@@ -1085,7 +1100,7 @@ class DependencyOrderingTests(unittest.TestCase):
 class PackageTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.config = load()
+        self.config = load_fake_release()
         self.root = Path(self.tmp.name)
         fixture.write(self.root, self.config)
         self.workspace = paths.Workspace(self.root, self.config).ensure_layout()
@@ -1096,7 +1111,7 @@ class PackageTests(unittest.TestCase):
     def test_a_complete_build_keeps_the_established_archive_name(self):
         lib_dirs = sorted({c.lib_dir for c in self.config.matrix()})
         self.assertEqual(package.full_archive_name(self.config, lib_dirs),
-                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
+                         "boost_1_942_1-snapshot-bin-msvc-all.7z")
         self.assertEqual(package.missing_lib_dirs(self.config, lib_dirs), [])
 
     def test_a_partial_build_is_named_partial(self):
@@ -1106,7 +1121,7 @@ class PackageTests(unittest.TestCase):
         # actually inside.
         name = package.full_archive_name(self.config, ["lib64-msvc-14.3"])
         self.assertEqual(
-            name, "boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z")
+            name, "boost_1_942_1-snapshot-bin-msvc-partial-14.3-64.7z")
         self.assertNotIn("all", name)
         self.assertEqual(len(package.missing_lib_dirs(
             self.config, ["lib64-msvc-14.3"])), 8)
@@ -1128,13 +1143,13 @@ class PackageTests(unittest.TestCase):
         workspace = paths.Workspace(root, self.config).ensure_layout()
         package.package(workspace)
         names = {p.name for p in workspace.out.iterdir()}
-        self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.3-64.zip", names)
-        self.assertIn("boost_1_93_0-snapshot-bin-msvc-partial-14.3-64.7z",
+        self.assertIn("boost_1_942_1-snapshot-bin-msvc-14.3-64.zip", names)
+        self.assertIn("boost_1_942_1-snapshot-bin-msvc-partial-14.3-64.7z",
                       names)
-        self.assertNotIn("boost_1_93_0-snapshot-bin-msvc-all.7z", names)
+        self.assertNotIn("boost_1_942_1-snapshot-bin-msvc-all.7z", names)
         # and that one zip holds every variant of the six
         with zipfile.ZipFile(
-                workspace.out / "boost_1_93_0-snapshot-bin-msvc-14.3-64.zip"
+                workspace.out / "boost_1_942_1-snapshot-bin-msvc-14.3-64.zip"
         ) as archive:
             entries = archive.namelist()
         for tag in ("-mt-x64-", "-mt-gd-x64-", "-mt-s-x64-", "-mt-sgd-x64-"):
@@ -1148,24 +1163,24 @@ class PackageTests(unittest.TestCase):
         self.assertIn("DEPENDENCY_VERSIONS.txt", names)
         self.assertIn("SHA256SUMS", names)
         self.assertIn("result_matrix.txt", names)
-        self.assertIn("boost_1_93_0-snapshot-32bitlog.txt", names)
-        self.assertIn("boost_1_93_0-snapshot-64bitlog.txt", names)
-        self.assertIn("boost_1_93_0-snapshot-arm64bitlog.txt", names)
+        self.assertIn("boost_1_942_1-snapshot-32bitlog.txt", names)
+        self.assertIn("boost_1_942_1-snapshot-64bitlog.txt", names)
+        self.assertIn("boost_1_942_1-snapshot-arm64bitlog.txt", names)
         for toolset in ("14.1", "14.2", "14.3", "14.5"):
             for arch in ("32", "64"):
                 self.assertIn(
-                    "boost_1_93_0-snapshot-bin-msvc-{}-{}.zip".format(
+                    "boost_1_942_1-snapshot-bin-msvc-{}-{}.zip".format(
                         toolset, arch), names)
         # arm64 ships the same way as the rest: its own per compiler zip,
         # and its libraries inside the one .7z with everything else.
-        self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.5-arm64.zip", names)
+        self.assertIn("boost_1_942_1-snapshot-bin-msvc-14.5-arm64.zip", names)
 
     def test_the_arm64_zip_holds_arm64_libraries(self):
         # Same zip layout as the x86 and x64 ones, with Boost's own a64 tag
         # instead of x86/x64 in the file names.
         package.package(self.workspace, full=False, checksums=False)
         target = self.workspace.out / \
-            "boost_1_93_0-snapshot-bin-msvc-14.5-arm64.zip"
+            "boost_1_942_1-snapshot-bin-msvc-14.5-arm64.zip"
         with zipfile.ZipFile(target) as archive:
             entries = [name for name in archive.namelist()
                        if not name.endswith("/")]
@@ -1186,7 +1201,7 @@ class PackageTests(unittest.TestCase):
         self.assertIn("lib32-msvc-14.1", lib_dirs)
         self.assertIn("lib64-msvc-14.5", lib_dirs)
         self.assertEqual(package.full_archive_name(self.config, lib_dirs),
-                         "boost_1_93_0-snapshot-bin-msvc-all.7z")
+                         "boost_1_942_1-snapshot-bin-msvc-all.7z")
 
     def test_a_missing_arm64_build_makes_the_archive_partial(self):
         lib_dirs = sorted({c.lib_dir for c in self.config.matrix()
@@ -1199,7 +1214,7 @@ class PackageTests(unittest.TestCase):
     def test_a_per_configuration_zip_holds_one_library_directory(self):
         package.package(self.workspace, full=False, checksums=False)
         target = self.workspace.out / \
-            "boost_1_93_0-snapshot-bin-msvc-14.3-64.zip"
+            "boost_1_942_1-snapshot-bin-msvc-14.3-64.zip"
         with zipfile.ZipFile(target) as archive:
             entries = [name for name in archive.namelist()
                        if not name.endswith("/")]
@@ -1253,8 +1268,8 @@ class PackageTests(unittest.TestCase):
         package.package(self.workspace, stages_root=ci_root, full=False,
                         checksums=False)
         names = {path.name for path in self.workspace.out.iterdir()}
-        self.assertIn("boost_1_93_0-snapshot-bin-msvc-14.5-32.zip", names)
-        self.assertIn("boost_1_93_0-snapshot-64bitlog.txt", names)
+        self.assertIn("boost_1_942_1-snapshot-bin-msvc-14.5-32.zip", names)
+        self.assertIn("boost_1_942_1-snapshot-64bitlog.txt", names)
 
     def test_discarding_stages_frees_the_inputs(self):
         stages = self.workspace.stages
@@ -1262,7 +1277,7 @@ class PackageTests(unittest.TestCase):
                         discard_stages=True)
         self.assertFalse(stages.exists())
         self.assertTrue((self.workspace.out /
-                         "boost_1_93_0-snapshot-bin-msvc-14.1-32.zip").exists())
+                         "boost_1_942_1-snapshot-bin-msvc-14.1-32.zip").exists())
 
     def _drop_library(self, config_id, library):
         test_json = self.workspace.stages / config_id / "meta" / "test.json"
