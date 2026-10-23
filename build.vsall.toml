@@ -147,14 +147,9 @@ extra_link_libs = ["charconv"]
 libs = ["python{python_tag}"]
 runtime_link = ["shared"]
 
-# Boost.Coroutine and Boost.Fiber are not built for Windows on ARM64, and
-# that is upstream's doing rather than something to fix here.  There is no
-# fcontext assembly for arm64/pe, so Boost.Context's own Jamfile forces
-# <context-impl>winfib (which carries -DBOOST_USE_WINFIB) for that target --
-# but it forces it only on itself.  Coroutine and Fiber are built without
-# that define, compile against the fcontext interface, and then fail to link
-# against the winfib boost_context.  Coroutine could not work either way: it
-# uses context::detail::fcontext_t directly.
+# Boost.Coroutine and Boost.Fiber are not built for arm64 -- see `without`
+# under [arch.arm64] in build.toml.  This file builds no arm64, so here the
+# entry only keeps the two configurations in step.
 [[smoke.conditional_libs]]
 libs = ["coroutine", "fiber"]
 arch = ["32", "64"]

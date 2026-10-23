@@ -34,7 +34,7 @@ def b2_command(workspace, build_config, jobs=None):
         "--layout=" + config.build.layout,
         "--debug-configuration",
     ]
-    for library in config.build.without:
+    for library in config.build.without + build_config.arch.without:
         command.append("--without-" + library)
     command += build_config.b2_properties
     command += list(config.build.extra_b2_args)

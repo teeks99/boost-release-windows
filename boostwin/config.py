@@ -21,6 +21,10 @@ class Arch:
     abi: str
     vcvars_target: str
     python_arch: str
+    # Libraries b2 is told to skip for this architecture only, on top of
+    # [build].without -- the ones that cannot work on it, which a static
+    # build would otherwise archive and stage without complaint.
+    without: tuple = ()
 
     @property
     def lib_prefix(self):
@@ -547,6 +551,7 @@ def load(path=None, overrides=None):
             abi=str(table.get("abi", "ms")),
             vcvars_target=str(_require(table, "vcvars_target", "arch." + key)),
             python_arch=str(table.get("python_arch", key)),
+            without=tuple(str(name) for name in table.get("without", ())),
         )
 
     toolsets = []

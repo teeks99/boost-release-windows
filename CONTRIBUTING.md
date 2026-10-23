@@ -166,9 +166,9 @@ configuration in the matrix has one, so an architecture added to
 Two things about the arm64 binaries come from Boost itself rather than from
 anything here, and both are worth knowing before you use them.
 
-**Boost.Context is the winfib build.** There is no fcontext assembly for
-arm64/pe, so Boost.Context's own Jamfile forces `<context-impl>winfib` on
-Windows ARM64, and that composes to `-DBOOST_USE_WINFIB`. Nothing
+**Boost.Context is the winfib build.** Boost.Context's own Jamfile forces
+`<context-impl>winfib` on Windows ARM64 -- its fcontext assembly is not used
+there -- and that composes to `-DBOOST_USE_WINFIB`. Nothing
 auto-detects it: `boost/context/fiber.hpp` selects `fiber_fcontext.hpp`
 unless a consumer defines the same macro. So **code using Boost.Context from
 the arm64 binaries has to be compiled with `BOOST_USE_WINFIB` defined**, or
@@ -178,11 +178,23 @@ which makes the smoke test prove the rule holds.
 
 **Boost.Coroutine and Boost.Fiber are not in the arm64 zip.** Boost.Context
 forces winfib only on itself; both of those libraries are then built without
-`BOOST_USE_WINFIB`, compile against the fcontext interface, and fail to link
-against the winfib `boost_context`. Coroutine could not work either way -- it
-uses `context::detail::fcontext_t` directly. They are declared as conditional
-libraries instead of required ones, so an arm64 configuration is not failed
-for them:
+`BOOST_USE_WINFIB` and compile against the fcontext interface, which the
+winfib `boost_context` does not provide. Coroutine could not work either way
+-- it uses `context::detail::fcontext_t` directly.
+
+Letting them fail to build is not enough. A shared build does fail, at link
+time, but a static build has no link step to fail: b2 archives the objects
+and stages them, and they would ship in the arm64 zip without anything
+noticing. So arm64 is built without them. An architecture's `without` goes
+to b2 as `--without-<library>`, on top of `[build].without`:
+
+```toml
+[arch.arm64]
+without = ["coroutine", "fiber"]
+```
+
+They are also declared as conditional libraries instead of required ones, so
+an arm64 configuration is not failed for their absence:
 
 ```toml
 [[smoke.conditional_libs]]

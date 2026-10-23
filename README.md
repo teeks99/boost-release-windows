@@ -73,8 +73,8 @@ come from Boost itself rather than from anything here:
 *   **Code that uses Boost.Context has to be compiled with `BOOST_USE_WINFIB`
     defined**, or it will fail to link on `make_fcontext`. Nothing
     auto-detects this.
-*   **Boost.Coroutine and Boost.Fiber are not in the arm64 zip.** They do not
-    build for Windows on ARM64.
+*   **Boost.Coroutine and Boost.Fiber are not in the arm64 zip.** They cannot
+    be linked on Windows on ARM64, so they are not built for it.
 
 [Boost.Context on arm64](CONTRIBUTING.md#boostcontext-on-arm64-and-what-it-costs)
 has the reasons.
