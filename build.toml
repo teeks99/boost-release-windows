@@ -24,8 +24,8 @@ source_extension = "tar.bz2"
 # usable form.  These are the same versions the hand-run builds have used.
 [deps]
 url = "https://boost.teeks99.com/deps/"
-python = "3.14.0"
-zlib = "1.3.1"
+python = "3.14.9"
+zlib = "1.3.2"
 bzip2 = "1.0.8"
 sevenzip = "2201"
 
