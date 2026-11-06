@@ -263,3 +263,40 @@ Building is only half of it. [upload_checklist.txt](upload_checklist.txt) has
 the steps for staging and uploading a release, and
 [stage_release.py](stage_release.py), [aws_upload.py](aws_upload.py) and
 [artifactory_upload.py](artifactory_upload.py) are the tools it refers to.
+
+### As a GitHub release
+
+Use **Run workflow** on
+[Publish a GitHub release](.github/workflows/release.yaml) to turn the binaries
+from a [build run](#building-in-github-actions) into a release on this
+repository. Nothing is rebuilt: the files are that run's `<release name>-binaries`
+artifact, exactly as the **package** job left them.
+
+| Input | Effect |
+| --- | --- |
+| `run` | the build run to publish: the URL of its page, or the number at the end of it |
+| `tag` | the tag to release under. Left blank it comes from the release name: `1.93.0`, `1.93.0_b1` or `1.93.0_snapshot` |
+| `prerelease` | mark it as a pre-release. Betas and snapshots always are, so this is for a candidate that may not be the final build |
+| `draft` | stop at a draft to check over, rather than publishing it |
+| `allow_incomplete` | publish a run that failed or skipped configurations anyway. It is marked as a pre-release and its notes say why |
+
+**The tag goes on the commit the run built**, not the tip of `master`, and is
+created if it does not exist. A draft creates no tag until it is published.
+
+It stops without publishing anything when:
+
+*   the run failed, or `result_matrix.txt` has a `?` or a `FAIL` in it -- so a
+    run of only part of the matrix is refused unless `allow_incomplete` is set;
+*   the tag already has a release, or is already on a different commit. To
+    replace a release, delete it and its tag first, because deleting a release
+    on GitHub leaves the tag behind:
+
+    ```
+    gh release delete 1.93.0 --cleanup-tag
+    ```
+
+*   the artifact has expired. It lasts 30 days, after which the only way to
+    publish that build is to run it again.
+
+GitHub limits each file in a release to 2 GiB. The largest here is the `.7z`,
+at about 1.2 GB for 1.93.

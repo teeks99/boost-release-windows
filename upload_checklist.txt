@@ -22,6 +22,8 @@ Modify artifactory_upload.py with correct version, run.
 
 Modify aws_upload.py with correct version, run.
 
+Run the "Publish a GitHub release" workflow with the URL of the build run.
+
 When release/beta drops, delete symlinks and move from staging to real dir. 
 Edit html for new version (release only)
 Run to_server.bash

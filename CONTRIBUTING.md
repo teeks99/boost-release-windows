@@ -347,6 +347,13 @@ Nothing about the matrix is written twice: the workflow reads the same
 `build.toml` that a local build does, through the same code, so CI and a
 hand-run build cannot drift apart.
 
+[.github/workflows/release.yaml](.github/workflows/release.yaml) is separate,
+and only ever runs by hand. It publishes what a finished run of `build.yaml`
+packaged, so it needs nothing from the repository and has no checkout: a job
+with write access never runs code from the commit it is publishing. It works
+out the tag from the name of the artifact, because the GitHub API does not give
+back the inputs a run was started with.
+
 
 ### Trying a change to the workflow
 
@@ -367,6 +374,11 @@ So, while working on a branch:
     the cheap option when you only want to know that the build still works.
 
 Remove the branch from `branches:` when the work merges.
+
+`release.yaml` has no push trigger, on purpose, so a change to it can only be
+tried once it is on the default branch. Its `draft` input is the safe way to do
+that: a draft creates no tag and is only visible to people with write access,
+and it can be deleted afterwards.
 
 Jobs do not fail the run when b2 reports errors — Boost does not always build
 cleanly everywhere, and the result matrix is part of the release. The smoke

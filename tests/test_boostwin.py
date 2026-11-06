@@ -1255,6 +1255,25 @@ class PackageTests(unittest.TestCase):
         self.assertIn("FAIL", text)
         self.assertIn("warn", text)
 
+    def test_result_matrix_marks_what_never_ran(self):
+        # This is what lets release.yaml refuse a build of part of the matrix
+        # even when the archive's name does not give it away: every compiler
+        # and architecture is here, so it is still called msvc-all.
+        release_only = [c for c in self.config.matrix()
+                        if c.variant == "release"]
+        root = Path(self.tmp.name) / "release-only"
+        fixture.write(root, self.config, release_only)
+        workspace = paths.Workspace(root, self.config).ensure_layout()
+        package.package(workspace, per_config=False, full=False,
+                        checksums=False)
+        lib_dirs = sorted({c.lib_dir for c in release_only})
+        self.assertEqual(package.full_archive_name(self.config, lib_dirs),
+                         self.config.full_archive_name)
+        text = (workspace.out / "result_matrix.txt").read_text()
+        never_ran = [line for line in text.splitlines() if " ? " in line]
+        self.assertEqual(len(never_ran),
+                         len(self.config.matrix()) - len(release_only))
+
     def test_stage_directories_are_found_in_the_ci_layout(self):
         # actions/download-artifact puts each artifact in its own directory.
         ci_root = self.root / "downloaded"

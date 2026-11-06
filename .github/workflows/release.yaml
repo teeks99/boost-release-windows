@@ -1,0 +1,245 @@
+name: Publish a GitHub release
+
+# Turns the binaries from a finished run of build.yaml into a GitHub release.
+# Nothing is rebuilt: what gets published is that run's <release name>-binaries
+# artifact, and the tag goes on the commit that run built, not on wherever
+# master has got to since.  README.md describes the inputs.
+#
+# There is deliberately no checkout.  This job can write to the repository and
+# has no need to run anything from it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "Build run to publish: its URL, or the number at the end of it"
+        required: true
+      tag:
+        description: "Tag to release under, created if it does not exist (blank: from the release name, e.g. 1.93.0)"
+        required: false
+        default: ""
+      prerelease:
+        description: "Mark it as a pre-release (betas and snapshots always are)"
+        type: boolean
+        required: false
+        default: false
+      draft:
+        description: "Stop at a draft to check over; the tag is only created once that is published"
+        type: boolean
+        required: false
+        default: false
+      allow_incomplete:
+        description: "Publish a run that failed or skipped configurations, as a pre-release"
+        type: boolean
+        required: false
+        default: false
+
+# One at a time, so two of these cannot both find the same tag free.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  actions: read     # the build run and its artifact
+  contents: write   # the tag and the release
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  ALLOW_INCOMPLETE: ${{ inputs.allow_incomplete }}
+
+jobs:
+  release:
+    name: Publish the binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Everything that can be refused without the binaries is refused here,
+      # before a 3 GB download.
+      - name: Check the run and work out the release
+        env:
+          RUN_INPUT: ${{ inputs.run }}
+          TAG_INPUT: ${{ inputs.tag }}
+          PRERELEASE_INPUT: ${{ inputs.prerelease }}
+        run: |
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          if [[ "$RUN_INPUT" =~ /runs/([0-9]+) || "$RUN_INPUT" =~ ^[[:space:]]*([0-9]+)[[:space:]]*$ ]]; then
+            run_id="${BASH_REMATCH[1]}"
+          else
+            fail "'$RUN_INPUT' is neither the URL of a run nor its number"
+          fi
+
+          run=$(gh api "repos/$GH_REPO/actions/runs/$run_id") \
+            || fail "$GH_REPO has no run $run_id"
+          field() {
+            jq -r "$1" <<<"$run"
+          }
+          commit=$(field .head_sha)
+
+          [ "$(field .path)" = .github/workflows/build.yaml ] \
+            || fail "run $run_id is a run of $(field .path), not build.yaml"
+          [ "$(field .head_repository.full_name)" = "$GH_REPO" ] \
+            || fail "run $run_id built a commit from $(field .head_repository.full_name), not from $GH_REPO"
+          [ "$(field .status)" = completed ] \
+            || fail "run $run_id has not finished: it is $(field .status)"
+
+          # The package job runs even when build jobs failed, so an artifact
+          # existing does not mean the run was good.
+          incomplete=false
+          conclusion=$(field .conclusion)
+          if [ "$conclusion" != success ]; then
+            [ "$ALLOW_INCOMPLETE" = true ] \
+              || fail "run $run_id finished with '$conclusion'.  Re-run its failed jobs, or set allow_incomplete to publish it anyway."
+            echo "::warning::publishing run $run_id even though it finished with '$conclusion'"
+            incomplete=true
+          fi
+
+          # A re-run can leave the same name behind from more than one attempt.
+          artifact=$(gh api --paginate "repos/$GH_REPO/actions/runs/$run_id/artifacts" \
+            --jq '.artifacts[] | select((.name | endswith("-binaries")) and (.expired | not)) | .name' \
+            | sort -u)
+          [ -n "$artifact" ] \
+            || fail "run $run_id has no -binaries artifact: it was either never packaged or has expired, and has to be built again"
+          release_name="${artifact%-binaries}"
+
+          # The same names stage_release.py gives these releases' directories:
+          # boost_1_93_0 is 1.93.0, boost_1_93_0_b1 is 1.93.0_b1 and
+          # boost_1_93_0-snapshot is 1.93.0_snapshot.  Anything else, like the
+          # plain "boost" of a build from git, has to be given a tag by hand.
+          tag=""
+          title="$release_name"
+          prerelease=true
+          if [[ "$release_name" =~ ^boost_([0-9]+)_([0-9]+)_([0-9]+)(_b([0-9]+)|-snapshot)?$ ]]; then
+            version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+            beta="${BASH_REMATCH[5]}"
+            case "${BASH_REMATCH[4]}" in
+              "")
+                tag="$version"
+                title="Boost $version"
+                prerelease="$PRERELEASE_INPUT"
+                ;;
+              -snapshot)
+                tag="${version}_snapshot"
+                title="Boost $version snapshot"
+                ;;
+              *)
+                tag="${version}_b$beta"
+                title="Boost $version beta $beta"
+                ;;
+            esac
+          fi
+          tag="${TAG_INPUT:-$tag}"
+          [ -n "$tag" ] \
+            || fail "no tag can be worked out from the release name $release_name, so the tag input has to give one"
+          [[ "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] \
+            || fail "'$tag' cannot be used as a tag"
+
+          # A tag on another commit would say these binaries came from code
+          # they did not, and deleting a release on GitHub leaves its tag
+          # behind, so that is the easy way to end up here.
+          if url=$(gh release view "$tag" --json url --jq .url 2>/dev/null); then
+            fail "$tag already has a release, $url.  To replace it, delete it and its tag first."
+          fi
+          if tagged=$(gh api "repos/$GH_REPO/commits/tags/$tag" --jq .sha 2>/dev/null); then
+            [ "$tagged" = "$commit" ] \
+              || fail "tag $tag is already on $tagged, but run $run_id built $commit.  Give another tag, or delete that one if it is wrong."
+          fi
+
+          {
+            echo "RUN_ID=$run_id"
+            echo "RUN_URL=$(field .html_url)"
+            echo "COMMIT=$commit"
+            echo "ARTIFACT=$artifact"
+            echo "RELEASE_NAME=$release_name"
+            echo "RELEASE_TAG=$tag"
+            echo "RELEASE_TITLE=$title"
+            echo "PRERELEASE=$prerelease"
+            echo "INCOMPLETE=$incomplete"
+          } >>"$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: assets
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+
+      - name: Check the binaries
+        working-directory: assets
+        run: |
+          # SHA256SUMS lists everything the package job wrote, so this also
+          # proves nothing has gone missing since.
+          sha256sum --check --strict --quiet SHA256SUMS
+
+          # result_matrix.txt has a row for every configuration in build.toml,
+          # whether it was built or not: FAIL is a failed smoke test and ? is
+          # one that never ran.  The archive's name is not enough to go on, as
+          # a run of `variants: release` still has every compiler and
+          # architecture in it and so still makes a ...-msvc-all.7z.
+          if grep -E ' (FAIL|\?) ' result_matrix.txt; then
+            if [ "$ALLOW_INCOMPLETE" != true ]; then
+              echo "::error::result_matrix.txt shows configurations that failed or never ran, listed above.  Build them, or set allow_incomplete to publish it anyway."
+              exit 1
+            fi
+            echo "::warning::publishing a build with configurations that failed or never ran, listed above"
+            echo "INCOMPLETE=true" >>"$GITHUB_ENV"
+          fi
+
+      - name: Publish
+        env:
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          flags=()
+          [ "$DRAFT" = true ] && flags+=(--draft)
+          if [ "$PRERELEASE" = true ] || [ "$INCOMPLETE" = true ]; then
+            flags+=(--prerelease)
+          fi
+
+          repo_url="$GITHUB_SERVER_URL/$GH_REPO"
+          full_archive=$(basename assets/*.7z)
+
+          {
+            if [ "$INCOMPLETE" = true ]; then
+              echo "> **This build is incomplete.** Not every configuration was built and passed its smoke tests: see \`result_matrix.txt\`."
+              echo
+            fi
+            cat <<EOF
+          Windows binaries for $RELEASE_TITLE, built with MSVC.
+
+          | File | Contents |
+          | --- | --- |
+          | \`$RELEASE_NAME-bin-msvc-<compiler>-<arch>.zip\` | One compiler and architecture: a \`libNN-msvc-X.Y\` directory of \`.lib\`, \`.dll\` and \`.pdb\` files. It goes beside the matching Boost source release, which is where the headers come from. |
+          | \`$full_archive\` | Everything in one archive: Boost's headers and every library directory. |
+          | \`result_matrix.txt\` | The smoke test results for each configuration. |
+          | \`DEPENDENCY_VERSIONS.txt\` | The compilers and dependencies the build actually used. |
+          | \`$RELEASE_NAME-<arch>bitlog.txt\` | The b2 output for every configuration of that architecture. |
+          | \`SHA256SUMS\` | Checksums for everything above. |
+
+          ### Using the arm64 binaries
+
+          Two things to know, both of which come from Boost itself ([the reasons]($repo_url/blob/$COMMIT/CONTRIBUTING.md#boostcontext-on-arm64-and-what-it-costs)):
+
+          - Code that uses Boost.Context has to be compiled with \`BOOST_USE_WINFIB\` defined, or it will fail to link on \`make_fcontext\`. Nothing auto-detects this.
+          - Boost.Coroutine and Boost.Fiber are not in the arm64 zip. They cannot be linked on Windows on ARM64, so they are not built for it.
+
+          ---
+
+          Built by [run $RUN_ID]($RUN_URL) from [\`${COMMIT:0:8}\`]($repo_url/commit/$COMMIT).
+          EOF
+          } >notes.md
+
+          url=$(gh release create "$RELEASE_TAG" assets/* \
+            --target "$COMMIT" \
+            --title "$RELEASE_TITLE" \
+            --notes-file notes.md \
+            "${flags[@]}")
+
+          echo "$url"
+          echo "[$RELEASE_TITLE]($url): tag \`$RELEASE_TAG\` on \`$COMMIT\`, from [run $RUN_ID]($RUN_URL)." >>"$GITHUB_STEP_SUMMARY"

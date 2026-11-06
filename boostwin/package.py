@@ -287,7 +287,12 @@ def check_consistency(workspace, stages_root):
 
 
 def result_matrix(workspace, stages_root):
-    """Regenerate result_matrix.txt from the smoke test results."""
+    """Regenerate result_matrix.txt from the smoke test results.
+
+    Every configuration in the matrix gets a row, built or not, and
+    .github/workflows/release.yaml refuses to publish a build with a ``?`` or
+    a ``FAIL`` in one.
+    """
     config = workspace.config
     tests = {record.get("config"): record
              for record in load_json_meta(stages_root, "test.json")}
